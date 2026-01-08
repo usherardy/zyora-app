@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Zyora",
+    "slug": "zyora",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "zyora",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "jsEngine": "hermes",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.zyora.app"
+    },
+    "android": {
+      "package": "com.zyora.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Zyora needs access to your photos for virtual try-on",
+          "cameraPermission": "Zyora needs access to your camera to take photos"
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Zyora needs access to save generated looks to your gallery",
+          "savePhotosPermission": "Zyora needs permission to save photos",
+          "isAccessMediaLocationEnabled": true
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
