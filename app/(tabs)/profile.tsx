@@ -36,9 +36,9 @@ export default function ProfileScreen() {
         { 
           text: 'Sign Out', 
           style: 'destructive', 
-          onPress: () => { 
-            signOut(); 
-            router.replace('/'); 
+          onPress: async () => { 
+            await signOut(); 
+            // Navigation will be handled by root layout
           } 
         },
       ]
@@ -47,8 +47,25 @@ export default function ProfileScreen() {
 
   if (!user) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }}>
-        <Text style={{ color: '#6B7280' }}>Please sign in</Text>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', paddingHorizontal: 24 }}>
+        <View style={{ alignItems: 'center', marginBottom: 24 }}>
+          <Ionicons name="person-outline" size={48} color="#9CA3AF" />
+        </View>
+        <Text style={{ color: '#6B7280', fontSize: 18, marginBottom: 8 }}>Please Sign In</Text>
+        <Text style={{ color: '#9CA3AF', fontSize: 14, textAlign: 'center', marginBottom: 24 }}>
+          You need to be signed in to view your profile
+        </Text>
+        <TouchableOpacity
+          onPress={() => router.replace('/')}
+          style={{
+            paddingHorizontal: 24,
+            paddingVertical: 12,
+            backgroundColor: '#000',
+            borderRadius: 8,
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '500' }}>Go to Sign In</Text>
+        </TouchableOpacity>
       </View>
     );
   }

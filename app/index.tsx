@@ -20,7 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
-import { useGoogleAuth, signInWithGoogle } from '@/lib/auth';
+import { useGoogleAuth, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword } from '@/lib/auth';
 
 const { width, height } = Dimensions.get('window');
 
@@ -33,7 +33,7 @@ export default function AuthScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const navigationState = useRootNavigationState();
-  const { user, isLoading, signInAsDeveloper, signInWithGoogle: storeSignInWithGoogle, loadFromStorage } = useAuthStore();
+  const { user, isLoading, signInAsDeveloper, signInWithGoogle: storeSignInWithGoogle, signInWithEmail: storeSignInWithEmail, loadFromStorage } = useAuthStore();
   const [isNavigating, setIsNavigating] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModalView, setAuthModalView] = useState<AuthModalView>('options');
@@ -141,9 +141,102 @@ export default function AuthScreen() {
     }
   };
 
-  const handleSignIn = () => {
-    // For now, use developer mode
-    handleDevSignIn();
+  const handleSignIn = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter both email and password');
+      return;
+    }
+
+    try {
+      setIsSigningIn(true);
+      const userProfile = await signInWithEmail(email, password);
+      if (userProfile) {
+        storeSignInWithEmail(userProfile);
+        setIsNavigating(true);
+        setShowAuthModal(false);
+        router.replace('/(tabs)/studio');
+      }
+    } catch (error: any) {
+      console.error('Email sign in failed:', error);
+      let errorMessage = 'Failed to sign in. Please try again.';
+      
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = 'No account found with this email address.';
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = 'Incorrect password. Please try again.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Please enter a valid email address.';
+      }
+      
+      Alert.alert('Sign In Failed', errorMessage);
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  const handleSignUp = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter both email and password');
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters long');
+      return;
+    }
+
+    try {
+      setIsSigningIn(true);
+      const userProfile = await signUpWithEmail(email, password);
+      if (userProfile) {
+        storeSignInWithEmail(userProfile);
+        setIsNavigating(true);
+        setShowAuthModal(false);
+        router.replace('/(tabs)/studio');
+      }
+    } catch (error: any) {
+      console.error('Email sign up failed:', error);
+      let errorMessage = 'Failed to create account. Please try again.';
+      
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'An account with this email already exists. Please sign in instead.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Please enter a valid email address.';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Password is too weak. Please choose a stronger password.';
+      }
+      
+      Alert.alert('Sign Up Failed', errorMessage);
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      Alert.alert('Error', 'Please enter your email address');
+      return;
+    }
+
+    try {
+      await resetPassword(email);
+      Alert.alert(
+        'Password Reset',
+        'A password reset email has been sent to your email address.',
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
+      console.error('Password reset failed:', error);
+      let errorMessage = 'Failed to send password reset email.';
+      
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = 'No account found with this email address.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Please enter a valid email address.';
+      }
+      
+      Alert.alert('Password Reset Failed', errorMessage);
+    }
   };
 
   const handleDevSignIn = () => {
@@ -497,9 +590,17 @@ export default function AuthScreen() {
                       />
                     </View>
 
+                    {/* Forgot Password */}
+                    <TouchableOpacity onPress={handleForgotPassword} activeOpacity={0.7} style={{ marginBottom: 24 }}>
+                      <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, textAlign: 'center', letterSpacing: 1 }}>
+                        Forgot Password?
+                      </Text>
+                    </TouchableOpacity>
+
                     {/* Sign In Button */}
                     <TouchableOpacity
                       onPress={handleSignIn}
+                      disabled={isSigningIn}
                       activeOpacity={0.9}
                       style={{
                         width: '100%',
@@ -507,11 +608,16 @@ export default function AuthScreen() {
                         backgroundColor: '#FFFFFF',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        opacity: isSigningIn ? 0.6 : 1,
                       }}
                     >
-                      <Text style={{ color: '#000000', fontSize: 13, fontWeight: '500', letterSpacing: 2 }}>
-                        SIGN IN
-                      </Text>
+                      {isSigningIn ? (
+                        <ActivityIndicator size="small" color="#000000" />
+                      ) : (
+                        <Text style={{ color: '#000000', fontSize: 13, fontWeight: '500', letterSpacing: 2 }}>
+                          SIGN IN
+                        </Text>
+                      )}
                     </TouchableOpacity>
                   </View>
                 )}
@@ -587,7 +693,8 @@ export default function AuthScreen() {
 
                     {/* Create Account Button */}
                     <TouchableOpacity
-                      onPress={handleSignIn}
+                      onPress={handleSignUp}
+                      disabled={isSigningIn}
                       activeOpacity={0.9}
                       style={{
                         width: '100%',
@@ -595,11 +702,16 @@ export default function AuthScreen() {
                         backgroundColor: '#FFFFFF',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        opacity: isSigningIn ? 0.6 : 1,
                       }}
                     >
-                      <Text style={{ color: '#000000', fontSize: 13, fontWeight: '500', letterSpacing: 2 }}>
-                        CREATE ACCOUNT
-                      </Text>
+                      {isSigningIn ? (
+                        <ActivityIndicator size="small" color="#000000" />
+                      ) : (
+                        <Text style={{ color: '#000000', fontSize: 13, fontWeight: '500', letterSpacing: 2 }}>
+                          CREATE ACCOUNT
+                        </Text>
+                      )}
                     </TouchableOpacity>
                   </View>
                 )}

@@ -31,6 +31,12 @@ interface AuthState {
     email: string | null;
     photoURL: string | null;
   }) => void;
+  signInWithEmail: (user: {
+    uid: string;
+    displayName: string | null;
+    email: string | null;
+    photoURL: string | null;
+  }) => void;
   loadFromStorage: () => Promise<void>;
 }
 
@@ -128,6 +134,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     };
     set({ user, isDevMode: false });
     userStorage.save(user);
+  },
+
+  signInWithEmail: (user) => {
+    const userProfile: UserProfile = {
+      uid: user.uid,
+      displayName: user.displayName,
+      email: user.email,
+      photoURL: user.photoURL,
+      quota: 0,
+      maxQuota: MAX_FREE_QUOTA,
+    };
+    set({ user: userProfile, isDevMode: false });
+    userStorage.save(userProfile);
   },
 
   loadFromStorage: async () => {

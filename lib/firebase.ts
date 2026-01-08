@@ -4,10 +4,14 @@ import {
   initializeAuth,
   GoogleAuthProvider,
   signInWithCredential,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   User,
-  Auth
+  Auth,
+  UserCredential
 } from 'firebase/auth';
 // @ts-ignore - React Native persistence
 import { getReactNativePersistence } from 'firebase/auth';
@@ -92,4 +96,36 @@ export function firebaseUserToProfile(user: User) {
     email: user.email,
     photoURL: user.photoURL,
   };
+}
+
+// Sign in with email and password
+export async function signInWithEmail(email: string, password: string): Promise<User> {
+  try {
+    const userCredential: UserCredential = await signInWithEmailAndPassword(auth, email, password);
+    return userCredential.user;
+  } catch (error) {
+    console.error('Email sign in error:', error);
+    throw error;
+  }
+}
+
+// Create account with email and password
+export async function signUpWithEmail(email: string, password: string): Promise<User> {
+  try {
+    const userCredential: UserCredential = await createUserWithEmailAndPassword(auth, email, password);
+    return userCredential.user;
+  } catch (error) {
+    console.error('Email sign up error:', error);
+    throw error;
+  }
+}
+
+// Send password reset email
+export async function resetPassword(email: string): Promise<void> {
+  try {
+    await sendPasswordResetEmail(auth, email);
+  } catch (error) {
+    console.error('Password reset error:', error);
+    throw error;
+  }
 }

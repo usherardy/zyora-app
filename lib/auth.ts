@@ -1,7 +1,14 @@
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import { GOOGLE_WEB_CLIENT_ID, GOOGLE_IOS_CLIENT_ID, GOOGLE_ANDROID_CLIENT_ID, ENDPOINTS } from '@/constants';
-import { signInWithGoogleCredential, signOutFromFirebase, firebaseUserToProfile } from './firebase';
+import { 
+  signInWithGoogleCredential, 
+  signOutFromFirebase, 
+  firebaseUserToProfile,
+  signInWithEmail as firebaseSignInWithEmail,
+  signUpWithEmail as firebaseSignUpWithEmail,
+  resetPassword as firebaseResetPassword
+} from './firebase';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -28,6 +35,38 @@ export async function signInWithGoogle(idToken: string, accessToken?: string) {
     return firebaseUserToProfile(firebaseUser);
   } catch (error) {
     console.error('Google sign in error:', error);
+    throw error;
+  }
+}
+
+// Sign in with email and password
+export async function signInWithEmail(email: string, password: string) {
+  try {
+    const firebaseUser = await firebaseSignInWithEmail(email, password);
+    return firebaseUserToProfile(firebaseUser);
+  } catch (error) {
+    console.error('Email sign in error:', error);
+    throw error;
+  }
+}
+
+// Create account with email and password
+export async function signUpWithEmail(email: string, password: string) {
+  try {
+    const firebaseUser = await firebaseSignUpWithEmail(email, password);
+    return firebaseUserToProfile(firebaseUser);
+  } catch (error) {
+    console.error('Email sign up error:', error);
+    throw error;
+  }
+}
+
+// Send password reset email
+export async function resetPassword(email: string) {
+  try {
+    await firebaseResetPassword(email);
+  } catch (error) {
+    console.error('Password reset error:', error);
     throw error;
   }
 }

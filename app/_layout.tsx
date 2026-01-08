@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useRootNavigationState } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useAuthStore } from '@/store/authStore';
@@ -8,7 +8,12 @@ import '../global.css';
 
 export default function RootLayout() {
   const loadFromStorage = useAuthStore((state) => state.loadFromStorage);
+  const user = useAuthStore((state) => state.user);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const router = useRouter();
+  const navigationState = useRootNavigationState();
   const [appReady, setAppReady] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -17,6 +22,18 @@ export default function RootLayout() {
     };
     init();
   }, []);
+
+  // Handle navigation based on auth state
+  useEffect(() => {
+    if (!navigationState?.key) return;
+    if (!isLoading && user && !isNavigating) {
+      setIsNavigating(true);
+      router.replace('/(tabs)/studio');
+    } else if (!isLoading && !user && isNavigating) {
+      setIsNavigating(false);
+      router.replace('/');
+    }
+  }, [user, isLoading, navigationState?.key, isNavigating]);
 
   if (!appReady) {
     return (
