@@ -19,10 +19,10 @@ export const FIREBASE_CONFIG = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || '',
 };
 
-// Google Sign-In Config
-export const GOOGLE_WEB_CLIENT_ID = '61715353016-3gus22f2fn3ms300g36a74kbim8181uu.apps.googleusercontent.com';
-export const GOOGLE_IOS_CLIENT_ID = '';
-export const GOOGLE_ANDROID_CLIENT_ID = GOOGLE_WEB_CLIENT_ID;
+// Google Sign-In Config - uses environment variables
+export const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
+export const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
+export const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || GOOGLE_WEB_CLIENT_ID;
 
 // App Constants
 export const MAX_FREE_QUOTA = 10;
