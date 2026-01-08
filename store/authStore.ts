@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { UserProfile, ImageAsset, SavedLook } from '@/types';
 import { userStorage, looksStorage, devModeStorage } from '@/lib/storage';
 import { MAX_FREE_QUOTA } from '@/constants';
+import { signOut as firebaseSignOut } from '@/lib/auth';
+import { onAuthStateChange, firebaseUserToProfile } from '@/lib/firebase';
 
 interface AuthState {
   user: UserProfile | null;
@@ -85,7 +87,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  signOut: () => {
+  signOut: async () => {
+    try {
+      await firebaseSignOut();
+    } catch (error) {
+      console.error('Firebase sign out error:', error);
+    }
     set({
       user: null,
       isDevMode: false,

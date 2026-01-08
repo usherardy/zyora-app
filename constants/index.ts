@@ -20,10 +20,9 @@ export const FIREBASE_CONFIG = {
 };
 
 // Google Sign-In Config
-// For Android, you can use the web client ID if you don't have a separate Android client ID
-export const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '1051207754955-c50vn4hgj6hg7l0q5qj6tqh9a5uf1nkm.apps.googleusercontent.com';
-export const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
-export const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || GOOGLE_WEB_CLIENT_ID;
+export const GOOGLE_WEB_CLIENT_ID = '61715353016-3gus22f2fn3ms300g36a74kbim8181uu.apps.googleusercontent.com';
+export const GOOGLE_IOS_CLIENT_ID = '';
+export const GOOGLE_ANDROID_CLIENT_ID = GOOGLE_WEB_CLIENT_ID;
 
 // App Constants
 export const MAX_FREE_QUOTA = 10;

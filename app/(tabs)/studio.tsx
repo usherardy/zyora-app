@@ -335,54 +335,76 @@ export default function StudioScreen() {
           }}
         >
           {renderViewfinder('user', userImg)}
-          
           <View style={{ flex: 1 }}>
             {renderViewfinder('fit', fitImg)}
-            
-            {/* URL Input */}
-            {!fitImg && (
-              <View 
-                style={{ 
-                  marginTop: 12,
-                  borderBottomWidth: 1,
-                  borderBottomColor: '#E5E7EB',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  paddingVertical: 8,
-                }}
-              >
-                <Ionicons name="link" size={14} color="#9CA3AF" />
-                <TextInput
-                  value={fitUrlValue}
-                  onChangeText={setFitUrlValue}
-                  placeholder="PASTE LINK"
-                  placeholderTextColor="#D1D5DB"
-                  style={{
-                    flex: 1,
-                    marginLeft: 8,
-                    fontSize: 11,
-                    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-                    letterSpacing: 1,
-                  }}
-                  onSubmitEditing={handleUrlSubmit}
-                  returnKeyType="go"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <TouchableOpacity
-                  onPress={handleUrlSubmit}
-                  disabled={!fitUrlValue.trim() || isLoadingUrl}
-                >
-                  <Ionicons
-                    name="arrow-forward"
-                    size={14}
-                    color={fitUrlValue.trim() ? '#000' : '#D1D5DB'}
-                  />
-                </TouchableOpacity>
-              </View>
-            )}
           </View>
         </Animated.View>
+
+        {/* URL Input - Below image uploads */}
+        {!fitImg && (
+          <Animated.View
+            style={{
+              opacity: fadeAnim,
+              marginTop: 16,
+            }}
+          >
+            <View 
+              style={{ 
+                height: 48,
+                backgroundColor: '#FFFFFF',
+                borderRadius: 24,
+                borderWidth: 1,
+                borderColor: '#E5E7EB',
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingHorizontal: 16,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.05,
+                shadowRadius: 2,
+                elevation: 1,
+              }}
+            >
+              <Ionicons name="link" size={16} color="#9CA3AF" style={{ marginRight: 12 }} />
+              <TextInput
+                value={fitUrlValue}
+                onChangeText={setFitUrlValue}
+                placeholder="Paste URL"
+                placeholderTextColor="#9CA3AF"
+                style={{
+                  flex: 1,
+                  fontSize: 14,
+                  color: '#000',
+                  paddingVertical: 0,
+                }}
+                onSubmitEditing={handleUrlSubmit}
+                returnKeyType="go"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity
+                onPress={handleUrlSubmit}
+                disabled={!fitUrlValue.trim() || isLoadingUrl}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: fitUrlValue.trim() ? '#000' : '#F3F4F6',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginLeft: 8,
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="arrow-forward"
+                  size={16}
+                  color={fitUrlValue.trim() ? '#FFFFFF' : '#9CA3AF'}
+                />
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        )}
 
         {/* Pro Tip */}
         <Animated.View

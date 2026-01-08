@@ -1,23 +1,110 @@
-import { useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, ImageBackground, Dimensions, Platform, Alert } from 'react-native';
+import { useEffect, useState, useRef } from 'react';
+import { 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  ImageBackground, 
+  Dimensions, 
+  Platform, 
+  Alert,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Animated,
+  ActivityIndicator,
+} from 'react-native';
 import { useRouter, useRootNavigationState } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
+import { useGoogleAuth, signInWithGoogle } from '@/lib/auth';
 
 const { width, height } = Dimensions.get('window');
 
+// Teal/green fashion background image
+const BACKGROUND_IMAGE = 'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1976&auto=format&fit=crop';
+
+type AuthModalView = 'options' | 'signin' | 'signup';
+
 export default function AuthScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const navigationState = useRootNavigationState();
-  const { user, isLoading, signInAsDeveloper, loadFromStorage } = useAuthStore();
+  const { user, isLoading, signInAsDeveloper, signInWithGoogle: storeSignInWithGoogle, loadFromStorage } = useAuthStore();
   const [isNavigating, setIsNavigating] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalView, setAuthModalView] = useState<AuthModalView>('options');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSigningIn, setIsSigningIn] = useState(false);
+
+  // Google Auth hook
+  const { request, response, promptAsync } = useGoogleAuth();
+
+  // Floating animation for logo
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const logoOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     loadFromStorage();
+    
+    // Start floating animation - slow 6 second loop
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -10,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
   }, []);
 
-  // Only navigate when navigation is ready and user exists
+  // Handle Google Sign-In response
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { authentication } = response;
+      if (authentication?.idToken) {
+        handleGoogleAuthSuccess(authentication.idToken, authentication.accessToken);
+      }
+    }
+  }, [response]);
+
+  const handleGoogleAuthSuccess = async (idToken: string, accessToken?: string | null) => {
+    try {
+      setIsSigningIn(true);
+      const userProfile = await signInWithGoogle(idToken, accessToken || undefined);
+      if (userProfile) {
+        storeSignInWithGoogle(userProfile);
+        setIsNavigating(true);
+        setShowAuthModal(false);
+        router.replace('/(tabs)/studio');
+      }
+    } catch (error) {
+      console.error('Google sign in failed:', error);
+      Alert.alert('Sign In Failed', 'Could not sign in with Google. Please try again.');
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  // Hide logo when modal is shown
+  useEffect(() => {
+    Animated.timing(logoOpacity, {
+      toValue: showAuthModal ? 0 : 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [showAuthModal]);
+
   useEffect(() => {
     if (!navigationState?.key) return;
     if (!isLoading && user && !isNavigating) {
@@ -26,24 +113,52 @@ export default function AuthScreen() {
     }
   }, [user, isLoading, navigationState?.key, isNavigating]);
 
+  const handleEnterStudio = () => {
+    setShowAuthModal(true);
+    setAuthModalView('options');
+  };
+
   const handleGoogleSignIn = async () => {
-    // Google Auth requires proper OAuth setup in Google Cloud Console
-    // For now, show a message and redirect to Developer Mode
-    Alert.alert(
-      'Google Sign-In',
-      'Google authentication requires OAuth configuration. Please use Developer Mode for now.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Use Developer Mode', onPress: handleDevSignIn },
-      ]
-    );
+    if (!request) {
+      Alert.alert(
+        'Google Sign-In',
+        'Google Sign-In is not configured. Please use Developer Mode for now.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Use Developer Mode', onPress: handleDevSignIn },
+        ]
+      );
+      return;
+    }
+    
+    try {
+      setIsSigningIn(true);
+      await promptAsync();
+    } catch (error) {
+      console.error('Google sign in error:', error);
+      Alert.alert('Error', 'Failed to initiate Google Sign-In');
+      setIsSigningIn(false);
+    }
+  };
+
+  const handleSignIn = () => {
+    // For now, use developer mode
+    handleDevSignIn();
   };
 
   const handleDevSignIn = () => {
     if (isNavigating) return;
     signInAsDeveloper();
     setIsNavigating(true);
+    setShowAuthModal(false);
     router.replace('/(tabs)/studio');
+  };
+
+  const closeModal = () => {
+    setShowAuthModal(false);
+    setAuthModalView('options');
+    setEmail('');
+    setPassword('');
   };
 
   if (isLoading) {
@@ -56,167 +171,444 @@ export default function AuthScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      {/* Background */}
+      {/* Background Image */}
       <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?q=80&w=2574&auto=format&fit=crop' }}
-        style={{ position: 'absolute', width: width * 1.1, height: height * 1.1, top: -height * 0.05, left: -width * 0.05 }}
+        source={{ uri: BACKGROUND_IMAGE }}
+        style={{ position: 'absolute', width, height }}
         resizeMode="cover"
       />
 
-      {/* Gradient Overlay - Darker for better contrast */}
+      {/* Top Dark Gradient */}
       <LinearGradient
-        colors={['rgba(0,0,0,0.6)', 'rgba(0,0,0,0.8)', 'rgba(0,0,0,0.98)']}
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1 }}
+        colors={['rgba(0,0,0,0.7)', 'rgba(0,0,0,0.3)', 'transparent']}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, height: height * 0.35, zIndex: 1 }}
       />
 
-      {/* Content - Ensure it's above gradient */}
-      <View style={{ flex: 1, justifyContent: 'flex-end', paddingHorizontal: 32, paddingBottom: 48, zIndex: 10 }}>
-        {/* Logo Section */}
-        <View style={{ marginBottom: 48 }}>
-          {/* Logo Icon */}
-          <View 
-            style={{
-              width: 64,
-              height: 64,
-              backgroundColor: '#FFFFFF',
-              borderRadius: 16,
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: 24,
-              transform: [{ rotate: '-3deg' }],
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 8,
-              elevation: 8,
-            }}
-          >
-            <Text style={{ fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', fontSize: 36, fontStyle: 'italic', color: '#000000' }}>Z</Text>
-          </View>
+      {/* Bottom Dark Gradient */}
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.95)']}
+        style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: height * 0.55, zIndex: 1 }}
+      />
 
-          {/* Brand Name - Fully opaque white */}
+      {/* Floating Animated Logo - Top Right */}
+      <Animated.View 
+        style={{ 
+          position: 'absolute', 
+          top: insets.top + 48, 
+          right: 32, 
+          zIndex: 10,
+          alignItems: 'flex-end',
+          opacity: logoOpacity,
+          transform: [{ translateY: floatAnim }],
+        }}
+        pointerEvents={showAuthModal ? 'none' : 'auto'}
+      >
+        {/* Circular Logo with glow effect */}
+        <View 
+          style={{
+            width: 96,
+            height: 96,
+            borderRadius: 48,
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.3)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'transparent',
+            shadowColor: '#FFFFFF',
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.15,
+            shadowRadius: 40,
+          }}
+        >
           <Text 
             style={{ 
               fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', 
-              fontSize: 56, 
+              fontSize: 48, 
               color: '#FFFFFF',
-              letterSpacing: 2,
-              textShadowColor: 'rgba(0,0,0,0.8)',
-              textShadowOffset: { width: 0, height: 2 },
-              textShadowRadius: 10,
-              fontWeight: '600',
+              fontStyle: 'italic',
+              paddingRight: 4,
             }}
           >
-            ZYORA
+            Z
           </Text>
+        </View>
+        <Text 
+          style={{ 
+            fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+            fontSize: 18, 
+            color: '#FFFFFF',
+            letterSpacing: 6,
+            marginTop: 12,
+            fontWeight: '500',
+            opacity: 0.9,
+          }}
+        >
+          ZYORA
+        </Text>
+      </Animated.View>
 
-          {/* Divider - More visible */}
-          <View style={{ height: 2, width: 48, backgroundColor: '#FFFFFF', opacity: 0.8, marginVertical: 16, borderRadius: 1 }} />
-
-          {/* Tagline - Fully opaque */}
+      {/* Main Content */}
+      <View style={{ flex: 1, justifyContent: 'flex-end', paddingHorizontal: 32, paddingBottom: insets.bottom + 48, zIndex: 10 }}>
+        {/* Hero Text - Large 72px Bodoni Moda style serif italic */}
+        <View style={{ marginBottom: 48 }}>
           <Text 
             style={{ 
-              color: '#FFFFFF', 
-              fontSize: 12, 
-              textTransform: 'uppercase',
-              letterSpacing: 6,
-              opacity: 1,
+              fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', 
+              fontSize: 72, 
+              color: '#FFFFFF',
+              fontStyle: 'italic',
+              lineHeight: 68,
+              letterSpacing: -2,
+              opacity: 0.9,
             }}
           >
-            Virtual Stylist
+            Virtually
           </Text>
-        </View>
-
-        {/* Sign In Buttons - Completely solid, no animation opacity */}
-        <View style={{ zIndex: 20 }}>
-          {/* Google Sign In Button - Completely solid white */}
-          <TouchableOpacity
-            onPress={handleGoogleSignIn}
-            activeOpacity={0.8}
-            style={{
-              width: '100%',
-              paddingVertical: 18,
-              backgroundColor: '#FFFFFF',
-              borderRadius: 100,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: 16,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.4,
-              shadowRadius: 20,
-              elevation: 10,
-            }}
-          >
-            <Ionicons name="logo-google" size={20} color="#000000" />
-            <Text 
-              style={{ 
-                color: '#000000', 
-                fontSize: 14, 
-                fontWeight: '700', 
-                textTransform: 'uppercase',
-                marginLeft: 12,
-                letterSpacing: 2,
-              }}
-            >
-              Continue with Google
-            </Text>
-          </TouchableOpacity>
-
-          {/* Developer Mode Button - More prominent */}
-          <TouchableOpacity
-            onPress={handleDevSignIn}
-            activeOpacity={0.8}
-            style={{
-              width: '100%',
-              paddingVertical: 18,
-              backgroundColor: '#FDE047',
-              borderWidth: 2,
-              borderColor: '#FFFFFF',
-              borderRadius: 100,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              shadowColor: '#FDE047',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.5,
-              shadowRadius: 20,
-              elevation: 10,
-            }}
-          >
-            <Ionicons name="flash" size={18} color="#000000" />
-            <Text 
-              style={{ 
-                color: '#000000', 
-                fontSize: 13, 
-                textTransform: 'uppercase',
-                marginLeft: 12,
-                letterSpacing: 3,
-                fontWeight: '700',
-              }}
-            >
-              Developer Mode
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Footer */}
-        <View style={{ marginTop: 32 }}>
           <Text 
             style={{ 
-              textAlign: 'center', 
-              color: '#FFFFFF', 
-              fontSize: 10, 
-              textTransform: 'uppercase',
-              letterSpacing: 2,
-              opacity: 0.8,
+              fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', 
+              fontSize: 72, 
+              color: '#FFFFFF',
+              fontStyle: 'italic',
+              lineHeight: 68,
+              letterSpacing: -2,
+              opacity: 0.9,
             }}
           >
-            Powered by AI • Virtual Try-On
+            Yours.
           </Text>
+          
+          {/* Tagline with horizontal line accent */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16 }}>
+            <View style={{ width: 48, height: 1, backgroundColor: 'rgba(255,255,255,0.5)', marginRight: 16 }} />
+            <Text 
+              style={{ 
+                color: 'rgba(255,255,255,0.8)', 
+                fontSize: 11, 
+                letterSpacing: 4,
+                fontWeight: '300',
+                textTransform: 'uppercase',
+              }}
+            >
+              The AI Stylist
+            </Text>
+          </View>
         </View>
+
+        {/* Enter Studio Button */}
+        <TouchableOpacity
+          onPress={handleEnterStudio}
+          activeOpacity={0.9}
+          style={{
+            width: '100%',
+            paddingVertical: 20,
+            backgroundColor: '#FFFFFF',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 24,
+          }}
+        >
+          <Text 
+            style={{ 
+              color: '#000000', 
+              fontSize: 13, 
+              fontWeight: '500', 
+              letterSpacing: 3,
+            }}
+          >
+            ENTER STUDIO
+          </Text>
+          <Ionicons name="arrow-forward" size={20} color="#000000" />
+        </TouchableOpacity>
       </View>
+
+      {/* Auth Modal */}
+      <Modal
+        visible={showAuthModal}
+        transparent
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <View style={{ flex: 1 }}>
+          {/* Background Image in Modal */}
+          <ImageBackground
+            source={{ uri: BACKGROUND_IMAGE }}
+            style={{ position: 'absolute', width, height }}
+            resizeMode="cover"
+          />
+          
+          {/* Dark Overlay */}
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)' }} />
+
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 24 }}>
+                
+                {/* Auth Options View */}
+                {authModalView === 'options' && (
+                  <View>
+                    {/* Sign In Button */}
+                    <TouchableOpacity
+                      onPress={() => setAuthModalView('signin')}
+                      activeOpacity={0.9}
+                      style={{
+                        width: '100%',
+                        paddingVertical: 18,
+                        backgroundColor: '#FFFFFF',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 12,
+                      }}
+                    >
+                      <Ionicons name="mail-outline" size={18} color="#000000" style={{ marginRight: 12 }} />
+                      <Text style={{ color: '#000000', fontSize: 13, fontWeight: '500', letterSpacing: 2 }}>
+                        SIGN IN
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Create Account Button */}
+                    <TouchableOpacity
+                      onPress={() => setAuthModalView('signup')}
+                      activeOpacity={0.9}
+                      style={{
+                        width: '100%',
+                        paddingVertical: 18,
+                        backgroundColor: 'transparent',
+                        borderWidth: 1,
+                        borderColor: 'rgba(255,255,255,0.5)',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 24,
+                      }}
+                    >
+                      <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '500', letterSpacing: 2 }}>
+                        CREATE ACCOUNT
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* OR Divider */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
+                      <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.3)' }} />
+                      <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginHorizontal: 16 }}>OR</Text>
+                      <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.3)' }} />
+                    </View>
+
+                    {/* Google Button */}
+                    <TouchableOpacity
+                      onPress={handleGoogleSignIn}
+                      activeOpacity={0.9}
+                      style={{
+                        width: '100%',
+                        paddingVertical: 18,
+                        backgroundColor: '#4285F4',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 24,
+                      }}
+                    >
+                      <Ionicons name="logo-google" size={18} color="#FFFFFF" style={{ marginRight: 12 }} />
+                      <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '500', letterSpacing: 2 }}>
+                        GOOGLE
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Cancel */}
+                    <TouchableOpacity onPress={closeModal} activeOpacity={0.7}>
+                      <Text style={{ color: '#FFFFFF', fontSize: 13, textAlign: 'center', letterSpacing: 2 }}>
+                        CANCEL
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Sign In Form View */}
+                {authModalView === 'signin' && (
+                  <View>
+                    {/* Back Button and Title */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 32 }}>
+                      <TouchableOpacity onPress={() => setAuthModalView('options')} style={{ marginRight: 16 }}>
+                        <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                      </TouchableOpacity>
+                      <Text 
+                        style={{ 
+                          fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', 
+                          fontSize: 32, 
+                          color: '#FFFFFF',
+                          fontStyle: 'italic',
+                        }}
+                      >
+                        Welcome Back
+                      </Text>
+                    </View>
+
+                    {/* Email Input */}
+                    <View style={{ marginBottom: 16 }}>
+                      <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, letterSpacing: 2, marginBottom: 8 }}>
+                        EMAIL
+                      </Text>
+                      <TextInput
+                        value={email}
+                        onChangeText={setEmail}
+                        placeholder="name@example.com"
+                        placeholderTextColor="rgba(255,255,255,0.4)"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        style={{
+                          width: '100%',
+                          paddingVertical: 16,
+                          paddingHorizontal: 16,
+                          backgroundColor: 'rgba(255,255,255,0.15)',
+                          borderWidth: 1,
+                          borderColor: 'rgba(255,255,255,0.2)',
+                          color: '#FFFFFF',
+                          fontSize: 15,
+                        }}
+                      />
+                    </View>
+
+                    {/* Password Input */}
+                    <View style={{ marginBottom: 32 }}>
+                      <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, letterSpacing: 2, marginBottom: 8 }}>
+                        PASSWORD
+                      </Text>
+                      <TextInput
+                        value={password}
+                        onChangeText={setPassword}
+                        placeholder="••••••••"
+                        placeholderTextColor="rgba(255,255,255,0.4)"
+                        secureTextEntry
+                        style={{
+                          width: '100%',
+                          paddingVertical: 16,
+                          paddingHorizontal: 16,
+                          backgroundColor: 'rgba(255,255,255,0.15)',
+                          borderWidth: 1,
+                          borderColor: 'rgba(255,255,255,0.2)',
+                          color: '#FFFFFF',
+                          fontSize: 15,
+                        }}
+                      />
+                    </View>
+
+                    {/* Sign In Button */}
+                    <TouchableOpacity
+                      onPress={handleSignIn}
+                      activeOpacity={0.9}
+                      style={{
+                        width: '100%',
+                        paddingVertical: 18,
+                        backgroundColor: '#FFFFFF',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Text style={{ color: '#000000', fontSize: 13, fontWeight: '500', letterSpacing: 2 }}>
+                        SIGN IN
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Sign Up Form View */}
+                {authModalView === 'signup' && (
+                  <View>
+                    {/* Back Button and Title */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 32 }}>
+                      <TouchableOpacity onPress={() => setAuthModalView('options')} style={{ marginRight: 16 }}>
+                        <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                      </TouchableOpacity>
+                      <Text 
+                        style={{ 
+                          fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', 
+                          fontSize: 32, 
+                          color: '#FFFFFF',
+                          fontStyle: 'italic',
+                        }}
+                      >
+                        Create Account
+                      </Text>
+                    </View>
+
+                    {/* Email Input */}
+                    <View style={{ marginBottom: 16 }}>
+                      <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, letterSpacing: 2, marginBottom: 8 }}>
+                        EMAIL
+                      </Text>
+                      <TextInput
+                        value={email}
+                        onChangeText={setEmail}
+                        placeholder="name@example.com"
+                        placeholderTextColor="rgba(255,255,255,0.4)"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        style={{
+                          width: '100%',
+                          paddingVertical: 16,
+                          paddingHorizontal: 16,
+                          backgroundColor: 'rgba(255,255,255,0.15)',
+                          borderWidth: 1,
+                          borderColor: 'rgba(255,255,255,0.2)',
+                          color: '#FFFFFF',
+                          fontSize: 15,
+                        }}
+                      />
+                    </View>
+
+                    {/* Password Input */}
+                    <View style={{ marginBottom: 32 }}>
+                      <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, letterSpacing: 2, marginBottom: 8 }}>
+                        PASSWORD
+                      </Text>
+                      <TextInput
+                        value={password}
+                        onChangeText={setPassword}
+                        placeholder="••••••••"
+                        placeholderTextColor="rgba(255,255,255,0.4)"
+                        secureTextEntry
+                        style={{
+                          width: '100%',
+                          paddingVertical: 16,
+                          paddingHorizontal: 16,
+                          backgroundColor: 'rgba(255,255,255,0.15)',
+                          borderWidth: 1,
+                          borderColor: 'rgba(255,255,255,0.2)',
+                          color: '#FFFFFF',
+                          fontSize: 15,
+                        }}
+                      />
+                    </View>
+
+                    {/* Create Account Button */}
+                    <TouchableOpacity
+                      onPress={handleSignIn}
+                      activeOpacity={0.9}
+                      style={{
+                        width: '100%',
+                        paddingVertical: 18,
+                        backgroundColor: '#FFFFFF',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Text style={{ color: '#000000', fontSize: 13, fontWeight: '500', letterSpacing: 2 }}>
+                        CREATE ACCOUNT
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+              </View>
+            </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </View>
   );
 }

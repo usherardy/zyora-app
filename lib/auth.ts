@@ -1,10 +1,11 @@
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import { GOOGLE_WEB_CLIENT_ID, GOOGLE_IOS_CLIENT_ID, GOOGLE_ANDROID_CLIENT_ID, ENDPOINTS } from '@/constants';
+import { signInWithGoogleCredential, signOutFromFirebase, firebaseUserToProfile } from './firebase';
 
 WebBrowser.maybeCompleteAuthSession();
 
-// Google OAuth configuration
+// Google OAuth configuration hook
 export const useGoogleAuth = () => {
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: GOOGLE_WEB_CLIENT_ID,
@@ -19,6 +20,27 @@ export const useGoogleAuth = () => {
     promptAsync,
   };
 };
+
+// Sign in with Google and Firebase
+export async function signInWithGoogle(idToken: string, accessToken?: string) {
+  try {
+    const firebaseUser = await signInWithGoogleCredential(idToken, accessToken);
+    return firebaseUserToProfile(firebaseUser);
+  } catch (error) {
+    console.error('Google sign in error:', error);
+    throw error;
+  }
+}
+
+// Sign out from Firebase
+export async function signOut() {
+  try {
+    await signOutFromFirebase();
+  } catch (error) {
+    console.error('Sign out error:', error);
+    throw error;
+  }
+}
 
 // Exchange Google token for Firebase custom token (if using backend auth)
 export async function exchangeTokenForFirebase(googleAccessToken: string): Promise<string | null> {
