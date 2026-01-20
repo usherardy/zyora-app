@@ -6,8 +6,6 @@
     "orientation": "portrait",
     "scheme": "zyora",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
-    "jsEngine": "hermes",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.zyora.app"
@@ -17,7 +15,11 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "single"
+      "output": "static",
+       "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Cross-Origin-Opener-Policy": "same-origin-allow-popups"
+      }
     },
     "plugins": [
       "expo-router",
@@ -36,9 +38,16 @@
           "isAccessMediaLocationEnabled": true
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#000000",
+          "sounds": []
+        }
+      ],
       "expo-font",
-      "@react-native-firebase/app",
-      "@react-native-firebase/auth"
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

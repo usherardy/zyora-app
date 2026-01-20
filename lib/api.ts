@@ -1,6 +1,20 @@
 import { ENDPOINTS } from '@/constants';
 import { GenerationResult } from '@/types';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
+
+/**
+ * Check API health
+ */
+export async function checkApiHealth(): Promise<boolean> {
+  try {
+    const response = await fetch(ENDPOINTS.HEALTH, { method: 'GET' });
+    return response.ok;
+  } catch (error) {
+    console.error('Health check failed:', error);
+    return false;
+  }
+}
 
 /**
  * Generate a virtual try-on look using the backend Vertex AI service
@@ -8,65 +22,95 @@ import * as FileSystem from 'expo-file-system';
 export async function generateLook(
   userImageBase64: string,
   fitImageBase64: string,
-  authToken?: string
+  authToken?: string,
+  timeoutMs: number = 120000 // 2 minutes default timeout
 ): Promise<GenerationResult> {
+  let userFileUri: string | null = null;
+  let fitFileUri: string | null = null;
+  
   try {
     // Remove data URL prefix if present
     const cleanUserBase64 = userImageBase64.includes(',') ? userImageBase64.split(',')[1] : userImageBase64;
     const cleanFitBase64 = fitImageBase64.includes(',') ? fitImageBase64.split(',')[1] : fitImageBase64;
 
-    // For React Native, we need to create temporary files and send them
-    // Or we can send base64 directly if backend supports it
-    // Let's try sending as FormData with proper file objects
-    
     const formData = new FormData();
     
-    // Convert base64 to blob-like object for React Native FormData
-    // React Native FormData accepts objects with uri, type, name
-    // But we need actual files, so let's create temp files first
-    
-    const userFileUri = `${FileSystem.cacheDirectory}user_${Date.now()}.jpg`;
-    const fitFileUri = `${FileSystem.cacheDirectory}fit_${Date.now()}.jpg`;
-    
-    // Write base64 to files
-    await FileSystem.writeAsStringAsync(userFileUri, cleanUserBase64, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    
-    await FileSystem.writeAsStringAsync(fitFileUri, cleanFitBase64, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+    if (Platform.OS === 'web') {
+      // On web, convert base64 to Blob directly
+      const userBlob = await fetch(`data:image/jpeg;base64,${cleanUserBase64}`).then(r => r.blob());
+      const fitBlob = await fetch(`data:image/jpeg;base64,${cleanFitBase64}`).then(r => r.blob());
+      
+      formData.append('userImgs', userBlob, 'user.jpg');
+      formData.append('fitImg', fitBlob, 'fit.jpg');
+    } else {
+      // For React Native, create temporary files
+      userFileUri = `${FileSystem.cacheDirectory}user_${Date.now()}.jpg`;
+      fitFileUri = `${FileSystem.cacheDirectory}fit_${Date.now()}.jpg`;
+      
+      // Write base64 to files
+      await FileSystem.writeAsStringAsync(userFileUri, cleanUserBase64, {
+        encoding: 'base64' as any,
+      });
+      
+      await FileSystem.writeAsStringAsync(fitFileUri, cleanFitBase64, {
+        encoding: 'base64' as any,
+      });
 
-    // Create FormData with file objects
-    formData.append('userImgs', {
-      uri: userFileUri,
-      type: 'image/jpeg',
-      name: 'user.jpg',
-    } as any);
-    
-    formData.append('fitImg', {
-      uri: fitFileUri,
-      type: 'image/jpeg',
-      name: 'fit.jpg',
-    } as any);
+      // Create FormData with file objects
+      formData.append('userImgs', {
+        uri: userFileUri,
+        type: 'image/jpeg',
+        name: 'user.jpg',
+      } as any);
+      
+      formData.append('fitImg', {
+        uri: fitFileUri,
+        type: 'image/jpeg',
+        name: 'fit.jpg',
+      } as any);
+    }
 
     const headers: Record<string, string> = {};
     if (authToken) {
       headers['Authorization'] = `Bearer ${authToken}`;
     }
 
-    const response = await fetch(ENDPOINTS.GENERATE_LOOK, {
-      method: 'POST',
-      headers,
-      body: formData,
+    console.log('Sending request to:', ENDPOINTS.GENERATE_LOOK);
+    console.log('Platform:', Platform.OS);
+
+    // Create a timeout promise
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Request timeout - generation took too long')), timeoutMs);
     });
 
-    // Clean up temp files
-    try {
-      await FileSystem.deleteAsync(userFileUri, { idempotent: true });
-      await FileSystem.deleteAsync(fitFileUri, { idempotent: true });
-    } catch (e) {
-      // Ignore cleanup errors
+    // Race between the fetch and timeout
+    const response = await Promise.race([
+      fetch(ENDPOINTS.GENERATE_LOOK, {
+        method: 'POST',
+        headers,
+        body: formData,
+      }),
+      timeoutPromise
+    ]).catch(error => {
+      console.error('Fetch failed:', error);
+      // More descriptive error messages
+      if (error.message.includes('timeout')) {
+        throw new Error('Request timed out. Please try again.');
+      }
+      if (error.message.includes('Network request failed')) {
+        throw new Error('Network error. Check your internet connection and try again.');
+      }
+      throw new Error(`Network request failed: ${error.message}`);
+    });
+
+    // Clean up temp files (native only)
+    if (Platform.OS !== 'web' && userFileUri && fitFileUri) {
+      try {
+        await FileSystem.deleteAsync(userFileUri, { idempotent: true });
+        await FileSystem.deleteAsync(fitFileUri, { idempotent: true });
+      } catch (e) {
+        // Ignore cleanup errors
+      }
     }
 
     if (!response.ok) {
@@ -151,7 +195,7 @@ export async function uriToBase64(uri: string): Promise<string> {
   if (uri.startsWith('file://') || uri.startsWith('ph://') || uri.startsWith('assets-library://')) {
     try {
       const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
+        encoding: 'base64' as any,
       });
       return base64;
     } catch (error) {

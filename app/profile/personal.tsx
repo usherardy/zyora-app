@@ -13,7 +13,6 @@ export default function PersonalInfoScreen() {
   const { user, setUser } = useAuthStore();
   
   const [displayName, setDisplayName] = useState(user?.displayName || '');
-  const [email, setEmail] = useState(user?.email || '');
   const [photoURL, setPhotoURL] = useState(user?.photoURL || '');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -45,7 +44,6 @@ export default function PersonalInfoScreen() {
     const updatedUser = {
       ...user,
       displayName: displayName.trim() || user.displayName,
-      email: email.trim() || user.email,
       photoURL: photoURL || user.photoURL,
     };
     
@@ -146,38 +144,14 @@ export default function PersonalInfoScreen() {
             />
           </View>
 
-          {/* Email */}
+          {/* Email (Read Only) */}
           <View>
             <Text style={{ color: '#9CA3AF', fontSize: 9, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>
               Email Address
             </Text>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="Enter your email"
-              placeholderTextColor="#D1D5DB"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              style={{
-                backgroundColor: '#F9FAFB',
-                borderBottomWidth: 2,
-                borderBottomColor: '#000',
-                paddingVertical: 16,
-                paddingHorizontal: 16,
-                fontSize: 16,
-                color: '#000',
-              }}
-            />
-          </View>
-
-          {/* User ID (Read Only) */}
-          <View>
-            <Text style={{ color: '#9CA3AF', fontSize: 9, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>
-              User ID
-            </Text>
-            <View style={{ backgroundColor: '#F9FAFB', paddingVertical: 16, paddingHorizontal: 16 }}>
-              <Text style={{ fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', color: '#9CA3AF' }}>
-                {user?.uid || 'N/A'}
+            <View style={{ backgroundColor: '#F9FAFB', borderBottomWidth: 2, borderBottomColor: '#E5E7EB', paddingVertical: 16, paddingHorizontal: 16 }}>
+              <Text style={{ fontSize: 16, color: '#000' }}>
+                {user?.email || 'N/A'}
               </Text>
             </View>
           </View>

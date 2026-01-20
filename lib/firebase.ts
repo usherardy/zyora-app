@@ -4,6 +4,7 @@ import {
   initializeAuth,
   GoogleAuthProvider,
   signInWithCredential,
+  signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
@@ -37,11 +38,18 @@ if (getApps().length === 0) {
   app = initializeApp(firebaseConfig);
   
   // Use persistence for React Native
+  // Note: getReactNativePersistence has issues with Expo Go on iOS
+  // For production, use a development build or switch to @react-native-firebase
   if (Platform.OS !== 'web') {
     try {
-      auth = initializeAuth(app, {
-        persistence: getReactNativePersistence(AsyncStorage),
-      });
+      // On iOS with Expo Go, skip custom persistence to avoid type errors
+      if (Platform.OS === 'ios' && __DEV__) {
+        auth = getAuth(app);
+      } else {
+        auth = initializeAuth(app, {
+          persistence: getReactNativePersistence(AsyncStorage),
+        });
+      }
     } catch (e) {
       // Auth already initialized
       auth = getAuth(app);
@@ -59,11 +67,57 @@ export { app, auth };
 // Sign in with Google credential
 export async function signInWithGoogleCredential(idToken: string, accessToken?: string) {
   try {
-    const credential = GoogleAuthProvider.credential(idToken, accessToken);
+    console.log('=== Firebase Sign In ===');
+    
+    let finalIdToken = idToken;
+    
+    // If idToken looks like an access token (starts with ya29), fetch the actual ID token
+    if (idToken?.startsWith?.('ya29') && accessToken) {
+      console.log('Received access token instead of ID token, attempting to fetch ID token...');
+      try {
+        // Try to get ID token from Google's tokeninfo endpoint
+        const tokenInfoResponse = await fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + idToken);
+        const tokenInfo = await tokenInfoResponse.json();
+        console.log('Token info:', tokenInfo);
+        
+        // If we got a valid access token, we need to exchange it for an ID token
+        // This requires a backend call for web - for now, we'll use an alternative approach
+        console.warn('Direct access token to ID token exchange requires backend. Consider using Firebase Web SDK Auth flow.');
+      } catch (e) {
+        console.error('Failed to fetch token info:', e);
+      }
+    }
+    
+    console.log('Creating credential with idToken:', finalIdToken?.slice(0, 20) + '...');
+    const credential = GoogleAuthProvider.credential(finalIdToken, accessToken);
+    console.log('Credential created:', credential);
+    console.log('Signing in with Firebase...');
     const userCredential = await signInWithCredential(auth, credential);
+    console.log('Firebase sign in successful:', userCredential.user);
     return userCredential.user;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Firebase sign in error:', error);
+    console.error('Error code:', error?.code);
+    console.error('Error message:', error?.message);
+    throw error;
+  }
+}
+
+// Sign in with Google using Firebase's native web flow (for web platform)
+export async function signInWithGoogleWeb() {
+  try {
+    console.log('=== Firebase Google Sign In (Web) ===');
+    const provider = new GoogleAuthProvider();
+    provider.addScope('profile');
+    provider.addScope('email');
+    
+    const userCredential = await signInWithPopup(auth, provider);
+    console.log('Firebase Google sign in successful:', userCredential.user);
+    return userCredential.user;
+  } catch (error: any) {
+    console.error('Firebase Google sign in error:', error);
+    console.error('Error code:', error?.code);
+    console.error('Error message:', error?.message);
     throw error;
   }
 }

@@ -3,10 +3,10 @@ export const API_BASE_URL = 'https://zyora-szo7.vercel.app';
 
 // API Endpoints
 export const ENDPOINTS = {
-  GENERATE_LOOK: `${API_BASE_URL}/generate-look`,
-  FETCH_IMAGE: `${API_BASE_URL}/fetch-image`,
-  EXCHANGE_TOKEN: `${API_BASE_URL}/exchange-token`,
-  HEALTH: `${API_BASE_URL}/health`,
+  GENERATE_LOOK: `${API_BASE_URL}/api/generate-look`,
+  FETCH_IMAGE: `${API_BASE_URL}/api/fetch-image`,
+  EXCHANGE_TOKEN: `${API_BASE_URL}/api/exchange-token`,
+  HEALTH: `${API_BASE_URL}/api/health`,
 };
 
 // Firebase Config - Replace with your actual config

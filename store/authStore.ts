@@ -74,7 +74,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { savedLooks } = get();
     const updated = [look, ...savedLooks];
     set({ savedLooks: updated });
-    await looksStorage.save(look);
+    try {
+      await looksStorage.save(look);
+    } catch (error: any) {
+      console.error('Failed to save look to storage:', error);
+      // If quota exceeded on web, just keep in memory
+      if (error?.name === 'QuotaExceededError') {
+        console.log('Storage quota exceeded, keeping look in memory only');
+      }
+    }
   },
 
   removeSavedLook: async (id) => {

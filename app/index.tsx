@@ -20,12 +20,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
-import { useGoogleAuth, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword } from '@/lib/auth';
+import { useGoogleAuth, signInWithGoogle, signInWithGoogleForWeb, signInWithEmail, signUpWithEmail, resetPassword } from '@/lib/auth';
 
 const { width, height } = Dimensions.get('window');
 
 // Teal/green fashion background image
-const BACKGROUND_IMAGE = 'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1976&auto=format&fit=crop';
+// const BACKGROUND_IMAGE = 'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1976&auto=format&fit=crop';
+
+const BACKGROUND_IMAGE = require('../assets/images/enter.png');
 
 type AuthModalView = 'options' | 'signin' | 'signup';
 
@@ -70,28 +72,72 @@ export default function AuthScreen() {
 
   // Handle Google Sign-In response
   useEffect(() => {
+    console.log('OAuth response received:', response);
     if (response?.type === 'success') {
+      console.log('OAuth success! Response:', response);
       const { authentication } = response;
-      if (authentication?.idToken) {
-        handleGoogleAuthSuccess(authentication.idToken, authentication.accessToken);
+      console.log('Authentication object:', authentication);
+      console.log('Authentication keys:', Object.keys(authentication || {}));
+      console.log('Full authentication:', JSON.stringify(authentication, null, 2));
+      
+      // Check for idToken in different possible locations
+      const idToken = authentication?.idToken || authentication?.id_token;
+      const accessToken = authentication?.accessToken || authentication?.access_token;
+      
+      console.log('idToken found:', !!idToken);
+      console.log('accessToken found:', !!accessToken);
+      console.log('accessToken:', accessToken?.slice(0, 50) + '...');
+      
+      if (idToken) {
+        console.log('idToken found, calling handleGoogleAuthSuccess');
+        handleGoogleAuthSuccess(idToken, accessToken);
+      } else {
+        console.error('No idToken available in OAuth response - cannot authenticate with Firebase');
       }
+    } else if (response?.type === 'error') {
+      console.error('OAuth error:', response.params?.error, response.params?.error_description);
+    } else if (response?.type === 'dismiss') {
+      console.log('OAuth dismissed by user');
     }
   }, [response]);
 
   const handleGoogleAuthSuccess = async (idToken: string, accessToken?: string | null) => {
     try {
       setIsSigningIn(true);
+      console.log('=== Google Sign-In Flow Started ===');
+      console.log('idToken:', idToken?.slice(0, 20) + '...');
+      console.log('accessToken:', accessToken ? accessToken.slice(0, 20) + '...' : 'none');
+      
       const userProfile = await signInWithGoogle(idToken, accessToken || undefined);
+      console.log('Sign-in successful, user profile:', userProfile);
+      
       if (userProfile) {
+        console.log('Calling storeSignInWithGoogle with:', userProfile);
         storeSignInWithGoogle(userProfile);
+        
+        // Wait a moment for state to update
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        console.log('Closing auth modal and navigating to studio...');
         setIsNavigating(true);
         setShowAuthModal(false);
-        router.replace('/(tabs)/studio');
+        
+        // Use a small delay to ensure state updates before navigation
+        setTimeout(() => {
+          console.log('Navigating to studio...');
+          router.replace('/(tabs)/studio');
+        }, 300);
+      } else {
+        console.error('No user profile returned from sign-in');
+        Alert.alert('Sign In Failed', 'Could not complete sign-in. Please try again.');
+        setIsSigningIn(false);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Google sign in failed:', error);
-      Alert.alert('Sign In Failed', 'Could not sign in with Google. Please try again.');
-    } finally {
+      Alert.alert(
+        'Sign In Failed', 
+        `${error?.message || 'Could not sign in with Google. Please try again.'}`
+      );
       setIsSigningIn(false);
     }
   };
@@ -119,24 +165,56 @@ export default function AuthScreen() {
   };
 
   const handleGoogleSignIn = async () => {
-    if (!request) {
-      Alert.alert(
-        'Google Sign-In',
-        'Google Sign-In is not configured. Please use Developer Mode for now.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Use Developer Mode', onPress: handleDevSignIn },
-        ]
-      );
-      return;
-    }
-    
     try {
       setIsSigningIn(true);
-      await promptAsync();
-    } catch (error) {
+      
+      // On web, use Firebase's native sign-in popup (simpler and provides ID token)
+      if (Platform.OS === 'web') {
+        console.log('Using Firebase native Google sign-in for web');
+        const userProfile = await signInWithGoogleForWeb();
+        console.log('Sign-in successful, user profile:', userProfile);
+        
+        if (userProfile) {
+          console.log('Calling storeSignInWithGoogle with:', userProfile);
+          storeSignInWithGoogle(userProfile);
+          
+          // Wait a moment for state to update
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          console.log('Closing auth modal and navigating to studio...');
+          setIsNavigating(true);
+          setShowAuthModal(false);
+          
+          // Use a small delay to ensure state updates before navigation
+          setTimeout(() => {
+            console.log('Navigating to studio...');
+            router.replace('/(tabs)/studio');
+          }, 300);
+        } else {
+          throw new Error('No user profile returned from sign-in');
+        }
+      } else {
+        // On native, use expo-auth-session
+        if (!request) {
+          Alert.alert(
+            'Google Sign-In',
+            'Google Sign-In is not configured. Please use Developer Mode for now.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Use Developer Mode', onPress: handleDevSignIn },
+            ]
+          );
+          return;
+        }
+        
+        await promptAsync();
+      }
+    } catch (error: any) {
       console.error('Google sign in error:', error);
-      Alert.alert('Error', 'Failed to initiate Google Sign-In');
+      Alert.alert(
+        'Sign In Failed',
+        error?.message || 'Failed to sign in with Google. Please try again.'
+      );
       setIsSigningIn(false);
     }
   };
@@ -266,7 +344,7 @@ export default function AuthScreen() {
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       {/* Background Image */}
       <ImageBackground
-        source={{ uri: BACKGROUND_IMAGE }}
+        source={BACKGROUND_IMAGE}
         style={{ position: 'absolute', width, height }}
         resizeMode="cover"
       />
@@ -293,8 +371,8 @@ export default function AuthScreen() {
           alignItems: 'flex-end',
           opacity: logoOpacity,
           transform: [{ translateY: floatAnim }],
+          pointerEvents: showAuthModal ? 'none' : 'auto',
         }}
-        pointerEvents={showAuthModal ? 'none' : 'auto'}
       >
         {/* Circular Logo with glow effect */}
         <View 
@@ -355,7 +433,7 @@ export default function AuthScreen() {
               opacity: 0.9,
             }}
           >
-            Virtually
+            Style. 
           </Text>
           <Text 
             style={{ 
@@ -368,7 +446,20 @@ export default function AuthScreen() {
               opacity: 0.9,
             }}
           >
-            Yours.
+            Simplified. 
+          </Text>
+          <Text 
+            style={{ 
+              fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', 
+              fontSize: 72, 
+              color: '#FFFFFF',
+              fontStyle: 'italic',
+              lineHeight: 68,
+              letterSpacing: -2,
+              opacity: 0.9,
+            }}
+          >
+            Virtually. 
           </Text>
           
           {/* Tagline with horizontal line accent */}
@@ -383,7 +474,7 @@ export default function AuthScreen() {
                 textTransform: 'uppercase',
               }}
             >
-              The AI Stylist
+              Your AI Stylist
             </Text>
           </View>
         </View>
@@ -426,7 +517,7 @@ export default function AuthScreen() {
         <View style={{ flex: 1 }}>
           {/* Background Image in Modal */}
           <ImageBackground
-            source={{ uri: BACKGROUND_IMAGE }}
+            source={BACKGROUND_IMAGE}
             style={{ position: 'absolute', width, height }}
             resizeMode="cover"
           />

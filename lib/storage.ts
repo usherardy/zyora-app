@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '@/constants';
 import { UserProfile, SavedLook } from '@/types';
+import { Platform } from 'react-native';
 
 /**
  * User storage operations
@@ -33,11 +34,25 @@ export const userStorage = {
  */
 export const looksStorage = {
   async save(look: SavedLook): Promise<void> {
-    const looks = await this.getAll();
-    looks.unshift(look);
-    // Keep only the most recent 50 looks
-    const trimmed = looks.slice(0, 50);
-    await AsyncStorage.setItem(STORAGE_KEYS.SAVED_LOOKS, JSON.stringify(trimmed));
+    // On web, don't store images in localStorage to avoid quota issues
+    // Just keep metadata for history
+    if (Platform.OS === 'web') {
+      const lookWithoutImage = {
+        ...look,
+        image: '', // Remove base64 image data
+      };
+      const looks = await this.getAll();
+      looks.unshift(lookWithoutImage);
+      // Keep only 10 recent looks on web
+      const trimmed = looks.slice(0, 10);
+      await AsyncStorage.setItem(STORAGE_KEYS.SAVED_LOOKS, JSON.stringify(trimmed));
+    } else {
+      // On native, store full data but limit to 20 looks
+      const looks = await this.getAll();
+      looks.unshift(look);
+      const trimmed = looks.slice(0, 20);
+      await AsyncStorage.setItem(STORAGE_KEYS.SAVED_LOOKS, JSON.stringify(trimmed));
+    }
   },
 
   async getAll(): Promise<SavedLook[]> {

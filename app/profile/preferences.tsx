@@ -1,17 +1,44 @@
-import { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Switch, Platform } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, Switch, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { usePreferencesStore } from '@/store/preferencesStore';
+import { looksStorage } from '@/lib/storage';
 
 export default function PreferencesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  
-  const [notifications, setNotifications] = useState(true);
-  const [saveToGallery, setSaveToGallery] = useState(true);
-  const [highQuality, setHighQuality] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const { preferences, isLoading, setNotifications, setDarkMode, setSaveToGallery, setHighQuality, loadPreferences } = usePreferencesStore();
+  const [cacheSize, setCacheSize] = useState('0 MB');
+
+  useEffect(() => {
+    loadPreferences();
+  }, [loadPreferences]);
+
+  const handleClearCache = () => {
+    Alert.alert(
+      'Clear Cache',
+      'This will delete all cached data. Are you sure?',
+      [
+        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
+        {
+          text: 'Clear',
+          onPress: async () => {
+            try {
+              await looksStorage.clear();
+              setCacheSize('0 MB');
+              Alert.alert('Success', 'Cache cleared successfully');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to clear cache');
+              console.error('Clear cache error:', error);
+            }
+          },
+          style: 'destructive',
+        },
+      ]
+    );
+  };
 
   const SettingRow = ({ 
     icon, 
@@ -91,14 +118,14 @@ export default function PreferencesScreen() {
               icon="notifications-outline"
               label="Push Notifications"
               sub="Get notified when generation completes"
-              value={notifications}
+              value={preferences.notifications}
               onToggle={setNotifications}
             />
             <SettingRow
               icon="moon-outline"
               label="Dark Mode"
               sub="Use dark theme throughout the app"
-              value={darkMode}
+              value={preferences.darkMode}
               onToggle={setDarkMode}
             />
           </View>
@@ -114,14 +141,14 @@ export default function PreferencesScreen() {
               icon="download-outline"
               label="Auto-Save to Gallery"
               sub="Automatically save generated looks"
-              value={saveToGallery}
+              value={preferences.saveToGallery}
               onToggle={setSaveToGallery}
             />
             <SettingRow
               icon="sparkles-outline"
               label="High Quality Output"
               sub="Generate higher resolution images (slower)"
-              value={highQuality}
+              value={preferences.highQuality}
               onToggle={setHighQuality}
             />
           </View>
@@ -135,11 +162,12 @@ export default function PreferencesScreen() {
           <View style={{ backgroundColor: '#F9FAFB', padding: 20 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
               <Text style={{ color: '#6B7280', fontSize: 13 }}>Cache Size</Text>
-              <Text style={{ color: '#000', fontSize: 13, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>24.5 MB</Text>
+              <Text style={{ color: '#000', fontSize: 13, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>{cacheSize}</Text>
             </View>
             <TouchableOpacity
               style={{ backgroundColor: '#000', paddingVertical: 14, alignItems: 'center' }}
               activeOpacity={0.8}
+              onPress={handleClearCache}
             >
               <Text style={{ color: '#fff', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', fontWeight: 'bold' }}>
                 Clear Cache

@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, Platform } from 'react-native';
 import { Tabs, usePathname, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,34 +22,34 @@ function CustomTabBar() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
-  const currentRoute = pathname.replace('/', '') || 'studio';
+  // Robust route detection (works with /(tabs)/...)
+  const segments = pathname.split('/').filter(Boolean);
+  const currentRoute = segments[segments.length - 1] as TabRoute;
 
   return (
     <View
+      pointerEvents="box-none"
       style={{
         position: 'absolute',
-        bottom: insets.bottom > 0 ? insets.bottom : 24,
+        bottom: 0,
         left: 0,
         right: 0,
         alignItems: 'center',
         zIndex: 50,
+        paddingBottom: insets.bottom > 0 ? insets.bottom : 24,
+        paddingTop:10,
+        backgroundColor: '#000',
       }}
-      pointerEvents="box-none"
     >
       <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          backgroundColor: 'rgba(0,0,0,0.9)',
+          backgroundColor:'#000',
           borderRadius: 100,
           padding: 8,
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.1)',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 10 },
-          shadowOpacity: 0.5,
-          shadowRadius: 40,
-          elevation: 20,
+          // borderColor: 'rgba(255,255,255,0.1)',
         }}
       >
         {navItems.map((item) => {
@@ -58,16 +58,17 @@ function CustomTabBar() {
           return (
             <TouchableOpacity
               key={item.route}
-              onPress={() => router.push(`/(tabs)/${item.route}`)}
               activeOpacity={0.8}
+              onPress={() => router.push(`/(tabs)/${item.route}`)}
               style={{
                 height: 48,
-                paddingHorizontal: isActive ? 24 : 24,
+                paddingHorizontal: 24,
                 borderRadius: 100,
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'center',
                 backgroundColor: isActive ? '#fff' : 'transparent',
+
                 shadowColor: isActive ? '#000' : 'transparent',
                 shadowOffset: { width: 0, height: 4 },
                 shadowOpacity: isActive ? 0.2 : 0,
@@ -78,9 +79,10 @@ function CustomTabBar() {
               <Ionicons
                 name={item.icon}
                 size={20}
-                color={isActive ? '#000' : '#6B7280'}
+                color={isActive ? '#000' : '#ffffff'}
                 style={{ opacity: isActive ? 1 : 0.7 }}
               />
+
               {isActive && (
                 <Text
                   style={{

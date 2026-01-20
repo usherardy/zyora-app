@@ -1,8 +1,10 @@
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
+import { Platform } from 'react-native';
 import { GOOGLE_WEB_CLIENT_ID, GOOGLE_IOS_CLIENT_ID, GOOGLE_ANDROID_CLIENT_ID, ENDPOINTS } from '@/constants';
 import { 
-  signInWithGoogleCredential, 
+  signInWithGoogleCredential,
+  signInWithGoogleWeb as firebaseSignInWithGoogleWeb,
   signOutFromFirebase, 
   firebaseUserToProfile,
   signInWithEmail as firebaseSignInWithEmail,
@@ -12,13 +14,42 @@ import {
 
 WebBrowser.maybeCompleteAuthSession();
 
+// Suppress COOP warning on web
+if (typeof window !== 'undefined') {
+  const originalWarn = console.warn;
+  console.warn = (...args: any[]) => {
+    // Suppress specific warnings
+    const message = args[0];
+    if (message?.includes?.('Cross-Origin-Opener-Policy') || 
+        message?.includes?.('shadow') ||
+        message?.includes?.('useNativeDriver')) {
+      return;
+    }
+    originalWarn(...args);
+  };
+}
+
+const redirectUrl = (() => {
+  if (Platform.OS === 'web') {
+    return __DEV__ 
+      ? 'http://localhost:8081/auth/callback' 
+      : 'https://your-production-domain.com/auth/callback';
+  }
+  // For native, use a custom scheme
+  return 'com.zyora.app://';
+})();
+
 // Google OAuth configuration hook
 export const useGoogleAuth = () => {
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: GOOGLE_WEB_CLIENT_ID,
     iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
     androidClientId: GOOGLE_ANDROID_CLIENT_ID,
-    scopes: ['profile', 'email'],
+    // Add 'openid' to scopes to get ID token on web
+    scopes: ['profile', 'email', 'openid'],
+    redirectUri: redirectUrl,
+    // For web, request both code and ID token
+    ...(Platform.OS === 'web' && { responseType: 'id_token token' }),
   });
 
   return {
@@ -35,6 +66,17 @@ export async function signInWithGoogle(idToken: string, accessToken?: string) {
     return firebaseUserToProfile(firebaseUser);
   } catch (error) {
     console.error('Google sign in error:', error);
+    throw error;
+  }
+}
+
+// Sign in with Google using Firebase's native web flow
+export async function signInWithGoogleForWeb() {
+  try {
+    const firebaseUser = await firebaseSignInWithGoogleWeb();
+    return firebaseUserToProfile(firebaseUser);
+  } catch (error) {
+    console.error('Google web sign in error:', error);
     throw error;
   }
 }

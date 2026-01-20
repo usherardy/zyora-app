@@ -91,6 +91,7 @@ export default function ProfileScreen() {
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'center',
+          backgroundColor: '#000000',
         }}
       >
         <View>
@@ -98,7 +99,7 @@ export default function ProfileScreen() {
             style={{ 
               fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', 
               fontSize: 32, 
-              color: '#000',
+              color: '#fff',
               letterSpacing: -1,
             }}
           >

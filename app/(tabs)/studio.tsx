@@ -85,8 +85,8 @@ export default function StudioScreen() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [3, 4],
+      allowsEditing: false,
+      // aspect: [10, 6],
       quality: 0.8,
       base64: true,
     });
@@ -273,14 +273,16 @@ export default function StudioScreen() {
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'flex-end',
+          backgroundColor: '#000000',
         }}
       >
         <View>
           <Text style={{ 
             fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', 
             fontSize: 32, 
-            color: '#000',
+            color: '#fff',
             letterSpacing: -1,
+            
           }}>
             ZYORA
           </Text>
@@ -299,7 +301,7 @@ export default function StudioScreen() {
         {/* Quota Indicator */}
         {user && (
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ fontSize: 9, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', color: '#9CA3AF', marginBottom: 4 }}>
+            <Text style={{ fontSize: 9, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', color: '#fff', marginBottom: 4 }}>
               QUOTA
             </Text>
             <View style={{ flexDirection: 'row', gap: 2 }}>
@@ -309,7 +311,7 @@ export default function StudioScreen() {
                   style={{ 
                     width: 4, 
                     height: 12, 
-                    backgroundColor: i < (user.maxQuota - user.quota) ? '#000' : '#E5E7EB',
+                    backgroundColor: i < (user.maxQuota - user.quota) ? '#fff' : '#E5E7EB',
                   }} 
                 />
               ))}
@@ -320,7 +322,7 @@ export default function StudioScreen() {
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 200, paddingHorizontal: 24 }}
+        contentContainerStyle={{ paddingBottom: 120, paddingHorizontal: 24 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -432,52 +434,50 @@ export default function StudioScreen() {
             Ensure subject is clearly visible. Garment should be isolated for optimal weaving.
           </Text>
         </Animated.View>
-      </ScrollView>
 
-      {/* Weave Look Button - Pops up from bottom */}
-      <Animated.View
-        style={{
-          position: 'absolute',
-          bottom: 100 + insets.bottom,
-          left: 0,
-          right: 0,
-          alignItems: 'center',
-          opacity: buttonOpacity,
-          transform: [{ translateY: buttonSlide }],
-        }}
-        pointerEvents={isReady ? 'auto' : 'none'}
-      >
-        <TouchableOpacity
-          onPress={handleGenerate}
-          activeOpacity={0.9}
+        {/* Generate Look Button */}
+        <Animated.View
           style={{
-            paddingHorizontal: 48,
-            paddingVertical: 20,
-            borderRadius: 100,
-            backgroundColor: '#000',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 20 },
-            shadowOpacity: 0.3,
-            shadowRadius: 40,
-            elevation: 20,
+            opacity: fadeAnim,
+            marginTop: 24,
+            alignItems: 'center',
           }}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Ionicons name="sparkles" size={16} color="#C4B5FD" />
-            <Text 
-              style={{ 
-                color: '#fff', 
-                fontSize: 11, 
-                fontWeight: 'bold',
-                letterSpacing: 3, 
-                textTransform: 'uppercase',
-              }}
-            >
-              Weave Look
-            </Text>
-          </View>
-        </TouchableOpacity>
-      </Animated.View>
+          <TouchableOpacity
+            onPress={handleGenerate}
+            activeOpacity={0.9}
+            style={{
+              paddingHorizontal: 48,
+              paddingVertical: 20,
+              borderRadius: 100,
+              backgroundColor: '#000',
+              // Shadows for native
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 20 },
+              shadowOpacity: 0.3,
+              shadowRadius: 40,
+              elevation: 20,
+              // Shadows for web
+              boxShadow: '0px 20px 40px rgba(0,0,0,0.3)',
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Ionicons name="sparkles" size={16} color="#C4B5FD" />
+              <Text 
+                style={{ 
+                  color: '#fff', 
+                  fontSize: 11, 
+                  fontWeight: 'bold',
+                  letterSpacing: 3, 
+                  textTransform: 'uppercase',
+                }}
+              >
+                Generate Look
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }

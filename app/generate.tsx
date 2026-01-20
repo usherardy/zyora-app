@@ -7,16 +7,20 @@ import {
   Alert,
   Platform,
   Animated,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
-import { generateLook, uriToBase64 } from '@/lib/api';
+import { usePreferencesStore } from '@/store/preferencesStore';
+import { generateLook, uriToBase64, checkApiHealth } from '@/lib/api';
+import { sendImmediateNotification, requestNotificationPermissions } from '@/lib/notifications';
 
 type GenerationStatus = 'loading' | 'success' | 'error';
 
@@ -24,6 +28,7 @@ export default function GenerateScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { userImg, fitImg, incrementQuota, addSavedLook } = useAuthStore();
+  const { preferences } = usePreferencesStore();
 
   const [status, setStatus] = useState<GenerationStatus>('loading');
   const [progress, setProgress] = useState(0);
@@ -32,6 +37,8 @@ export default function GenerateScreen() {
   const hasRunRef = useRef(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const generationAbortController = useRef<AbortController | null>(null);
+  const appState = useRef(AppState.currentState);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -54,16 +61,46 @@ export default function GenerateScreen() {
         }),
       ])
     ).start();
+
+    // Monitor app state changes
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        console.log('App has come to the foreground');
+      }
+      appState.current = nextAppState;
+      console.log('AppState:', appState.current);
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   useEffect(() => {
     if (hasRunRef.current) return;
     hasRunRef.current = true;
 
+    // Request notification permissions if enabled in preferences
+    if (preferences.notifications) {
+      requestNotificationPermissions();
+    }
+
     const generate = async () => {
+      const isInBackground = appState.current.match(/inactive|background/);
+      
       try {
         if (!userImg || !fitImg) {
           throw new Error('Missing images');
+        }
+
+        // Check API health first
+        console.log('Checking API health...');
+        const isHealthy = await checkApiHealth();
+        if (!isHealthy) {
+          throw new Error('Backend server is not responding. Please try again later.');
         }
 
         const interval = setInterval(() => {
@@ -75,7 +112,8 @@ export default function GenerateScreen() {
           fitImg.base64 || uriToBase64(fitImg.uri),
         ]);
 
-        const response = await generateLook(userBase64, fitBase64);
+        // Use longer timeout to account for possible slow connections
+        const response = await generateLook(userBase64, fitBase64, undefined, 180000); // 3 minutes
 
         clearInterval(interval);
         setProgress(100);
@@ -92,6 +130,20 @@ export default function GenerateScreen() {
             userImageUri: userImg.uri,
             fitImageUri: fitImg.uri,
           });
+
+          // Auto-save to gallery if preference is enabled
+          if (preferences.saveToGallery) {
+            await saveToGallery(response.image);
+          }
+
+          // Send notification if app is in background and notifications are enabled
+          if (isInBackground && preferences.notifications) {
+            await sendImmediateNotification(
+              '✨ Your Look is Ready!',
+              'Your virtual try-on has been generated successfully',
+              { type: 'generation_complete' }
+            );
+          }
         } else {
           throw new Error(response.error || 'Failed to generate look');
         }
@@ -99,11 +151,43 @@ export default function GenerateScreen() {
         console.error('Generation error:', error);
         setStatus('error');
         setErrorMsg(error.message || 'Something went wrong during generation.');
+        
+        // Send error notification if app is in background and notifications are enabled
+        if (isInBackground && preferences.notifications) {
+          await sendImmediateNotification(
+            'Generation Failed',
+            'There was an error generating your look. Please try again.',
+            { type: 'generation_error' }
+          );
+        }
       }
     };
 
     generate();
   }, []);
+
+  const saveToGallery = async (imageBase64: string) => {
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        console.warn('Photo library permission denied');
+        return;
+      }
+
+      const filename = `zyora-look-${Date.now()}.png`;
+      const fileUri = (FileSystem.documentDirectory || '') + filename;
+
+      const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+        encoding: 'base64' as any,
+      });
+
+      await MediaLibrary.saveToLibraryAsync(fileUri);
+      console.log('Image auto-saved to gallery');
+    } catch (error) {
+      console.error('Auto-save to gallery error:', error);
+    }
+  };
 
   const handleDownload = async () => {
     if (!result) return;
@@ -116,11 +200,11 @@ export default function GenerateScreen() {
       }
 
       const filename = `zyora-look-${Date.now()}.png`;
-      const fileUri = FileSystem.documentDirectory + filename;
+      const fileUri = (FileSystem.documentDirectory || '') + filename;
 
       const base64Data = result.includes(',') ? result.split(',')[1] : result;
       await FileSystem.writeAsStringAsync(fileUri, base64Data, {
-        encoding: FileSystem.EncodingType.Base64,
+        encoding: 'base64' as any,
       });
 
       await MediaLibrary.saveToLibraryAsync(fileUri);
@@ -189,10 +273,13 @@ export default function GenerateScreen() {
                 borderRadius: 32,
                 transform: [{ rotate: '6deg' }, { scale: 0.9 }],
                 opacity: 0.6,
+                // Shadows for native
                 shadowColor: '#000',
                 shadowOffset: { width: 0, height: 4 },
                 shadowOpacity: 0.1,
                 shadowRadius: 8,
+                // Shadows for web
+                boxShadow: '0px 4px 8px rgba(0,0,0,0.1)',
               }}
             >
               {fitImg && (
@@ -212,10 +299,13 @@ export default function GenerateScreen() {
                 borderRadius: 32,
                 transform: [{ rotate: '-6deg' }, { scale: 0.95 }],
                 opacity: 0.8,
+                // Shadows for native
                 shadowColor: '#000',
                 shadowOffset: { width: 0, height: 8 },
                 shadowOpacity: 0.15,
                 shadowRadius: 16,
+                // Shadows for web
+                boxShadow: '0px 8px 16px rgba(0,0,0,0.15)',
               }}
             >
               {userImg && (
@@ -237,11 +327,14 @@ export default function GenerateScreen() {
                 overflow: 'hidden',
                 alignItems: 'center',
                 justifyContent: 'center',
+                // Shadows for native
                 shadowColor: '#000',
                 shadowOffset: { width: 0, height: 12 },
                 shadowOpacity: 0.3,
                 shadowRadius: 24,
                 elevation: 12,
+                // Shadows for web
+                boxShadow: '0px 12px 24px rgba(0,0,0,0.3)',
               }}
             >
               <LinearGradient
