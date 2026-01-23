@@ -26,7 +26,8 @@ import { useGoogleAuth, signInWithGoogle, signInWithEmail, signUpWithEmail, rese
 const { width, height } = Dimensions.get('window');
 
 // Teal/green fashion background image
-const BACKGROUND_IMAGE = 'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1976&auto=format&fit=crop';
+// const BACKGROUND_IMAGE = 'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1976&auto=format&fit=crop';
+const BACKGROUND_IMAGE = require('../assets/images/enter.png');
 
 type AuthModalView = 'options' | 'signin' | 'signup';
 
@@ -267,7 +268,7 @@ export default function AuthScreen() {
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       {/* Background Image */}
       <ImageBackground
-        source={{ uri: BACKGROUND_IMAGE }}
+        source={BACKGROUND_IMAGE}
         style={{ position: 'absolute', width, height }}
         resizeMode="cover"
       />
@@ -424,7 +425,7 @@ export default function AuthScreen() {
         <View style={{ flex: 1 }}>
           {/* Background Image in Modal */}
           <ImageBackground
-            source={{ uri: BACKGROUND_IMAGE }}
+            source={BACKGROUND_IMAGE}
             style={{ position: 'absolute', width, height }}
             resizeMode="cover"
           />
