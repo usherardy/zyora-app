@@ -8,7 +8,7 @@ const isDev = process.env.NODE_ENV !== 'production' || __DEV__;
 const getApiBaseUrl = () => {
   // Always use production backend - has Vertex AI credentials configured
   console.log('[Constants] Using production Vercel backend');
-  return 'https://zyora-szo7.vercel.app';
+  return 'https://zyora-app1.vercel.app';
 };
 
 export const API_BASE_URL = getApiBaseUrl();

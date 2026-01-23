@@ -27,7 +27,7 @@ const getApiBaseUrl = (platform) => {
     if (isDev && (platform === 'ios' || platform === 'android')) {
         return 'http://172.20.10.5:3000/';
     }
-    return isDev ? 'http://localhost:3000/' : 'https://zyora-szo7.vercel.app/';
+    return isDev ? 'http://localhost:3000/' : 'https://zyora-app1.vercel.app/';
 };
 
 // App URL for direct navigation (web only)
@@ -43,7 +43,7 @@ const getAppUrl = (platform) => {
     }
     
     // Default based on environment
-    return isDev ? 'http://localhost:8081/' : 'https://zyora-szo7.vercel.app/';
+    return isDev ? 'http://localhost:8081/' : 'https://zyora-app1.vercel.app/';
 };
 
 console.log(`[Config] Environment: ${isDev ? 'development' : 'production'}`);
