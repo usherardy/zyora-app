@@ -86,12 +86,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await looksStorage.remove(id);
   },
 
-  incrementQuota: () => {
+  incrementQuota: async () => {
     const { user } = get();
     if (user) {
-      const updatedUser = { ...user, quota: user.quota + 1 };
+      const newQuota = user.quota + 1;
+      const updatedUser = { ...user, quota: newQuota };
       set({ user: updatedUser });
       userStorage.save(updatedUser);
+      
+      // Sync with backend database
+      try {
+        console.log('[AuthStore] Syncing quota to database...', ENDPOINTS.UPDATE_PROFILE);
+        const response = await fetch(ENDPOINTS.UPDATE_PROFILE, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.uid,
+            quota: newQuota,
+          }),
+        });
+        const data = await response.json();
+        if (response.ok) {
+          console.log('[AuthStore] Quota synced to database:', newQuota, data);
+        } else {
+          console.error('[AuthStore] Backend returned error:', response.status, data);
+        }
+      } catch (error) {
+        console.error('[AuthStore] Failed to sync quota to database:', error);
+      }
     }
   },
 

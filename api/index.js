@@ -1,8 +1,31 @@
 const express = require('express');
 const cors = require('cors');
+const admin = require('firebase-admin');
 require('dotenv').config();
 
 const app = express();
+
+/* ===========================
+   Firebase Admin Initialization
+   =========================== */
+let db = null;
+try {
+    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+    if (serviceAccountJson) {
+        const serviceAccount = JSON.parse(serviceAccountJson);
+        if (!admin.apps.length) {
+            admin.initializeApp({
+                credential: admin.credential.cert(serviceAccount),
+            });
+        }
+        db = admin.firestore();
+        console.log('✅ Firebase Admin initialized');
+    } else {
+        console.warn('⚠️ Firebase service account not found - database features disabled');
+    }
+} catch (error) {
+    console.error('❌ Firebase Admin initialization error:', error.message);
+}
 
 /* ===========================
    Environment Configuration
@@ -144,6 +167,78 @@ app.get("/verify-checkout-session", async (req, res) => {
             res.json({ status: session.payment_status });
         }
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * Update User Profile (including quota)
+ */
+app.post("/update-profile", async (req, res) => {
+    if (!db) {
+        return res.status(503).json({ error: "Database not initialized" });
+    }
+
+    try {
+        const { userId, quota, displayName, photoURL } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({ error: "userId is required" });
+        }
+
+        const updateData = {};
+        if (quota !== undefined) updateData.quota = quota;
+        if (displayName !== undefined) updateData.displayName = displayName;
+        if (photoURL !== undefined) updateData.photoURL = photoURL;
+        updateData.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+
+        await db.collection('users').doc(userId).set(updateData, { merge: true });
+
+        console.log(`[Profile] Updated user ${userId}:`, updateData);
+        res.json({ success: true, userId, ...updateData });
+    } catch (err) {
+        console.error("Update profile error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * Get User Credits
+ */
+app.get("/get-user-credits", async (req, res) => {
+    if (!db) {
+        return res.status(503).json({ error: "Database not initialized" });
+    }
+
+    try {
+        const { userId } = req.query;
+
+        if (!userId) {
+            return res.status(400).json({ error: "userId is required" });
+        }
+
+        const userDoc = await db.collection('users').doc(userId).get();
+
+        if (!userDoc.exists) {
+            // Return default values for new users
+            return res.json({
+                quota: 0,
+                maxQuota: 5,
+                currentPlan: 'free',
+            });
+        }
+
+        const userData = userDoc.data();
+        res.json({
+            quota: userData.quota || 0,
+            maxQuota: userData.maxQuota || 5,
+            currentPlan: userData.currentPlan || 'free',
+            displayName: userData.displayName || null,
+            photoURL: userData.photoURL || null,
+            email: userData.email || null,
+        });
+    } catch (err) {
+        console.error("Get user credits error:", err);
         res.status(500).json({ error: err.message });
     }
 });

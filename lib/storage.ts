@@ -30,29 +30,65 @@ export const userStorage = {
 
 /**
  * Saved looks storage operations
+ * Note: We don't store full base64 images to avoid localStorage quota issues
+ * Only metadata is persisted, images are kept in memory during session
  */
 export const looksStorage = {
   async save(look: SavedLook): Promise<void> {
-    const looks = await this.getAll();
-    looks.unshift(look);
-    // Keep only the most recent 50 looks
-    const trimmed = looks.slice(0, 50);
-    await AsyncStorage.setItem(STORAGE_KEYS.SAVED_LOOKS, JSON.stringify(trimmed));
+    try {
+      const looks = await this.getAll();
+      
+      // Store only metadata without the full base64 image to avoid quota issues
+      const lookMetadata = {
+        id: look.id,
+        createdAt: look.createdAt,
+        userImageUri: look.userImageUri,
+        fitImageUri: look.fitImageUri,
+        // Don't store the full generated image - it's too large for localStorage
+        // The image will be kept in memory during the session
+      };
+      
+      looks.unshift(lookMetadata as SavedLook);
+      // Keep only the most recent 10 looks metadata
+      const trimmed = looks.slice(0, 10);
+      await AsyncStorage.setItem(STORAGE_KEYS.SAVED_LOOKS, JSON.stringify(trimmed));
+    } catch (error: any) {
+      // Handle quota exceeded error gracefully
+      if (error?.name === 'QuotaExceededError' || error?.message?.includes('quota')) {
+        console.warn('[Storage] Quota exceeded, clearing old looks');
+        await this.clear();
+      } else {
+        console.error('[Storage] Failed to save look:', error);
+      }
+    }
   },
 
   async getAll(): Promise<SavedLook[]> {
-    const data = await AsyncStorage.getItem(STORAGE_KEYS.SAVED_LOOKS);
-    return data ? JSON.parse(data) : [];
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.SAVED_LOOKS);
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      console.error('[Storage] Failed to get looks:', error);
+      return [];
+    }
   },
 
   async remove(id: string): Promise<void> {
-    const looks = await this.getAll();
-    const filtered = looks.filter((look) => look.id !== id);
-    await AsyncStorage.setItem(STORAGE_KEYS.SAVED_LOOKS, JSON.stringify(filtered));
+    try {
+      const looks = await this.getAll();
+      const filtered = looks.filter((look) => look.id !== id);
+      await AsyncStorage.setItem(STORAGE_KEYS.SAVED_LOOKS, JSON.stringify(filtered));
+    } catch (error) {
+      console.error('[Storage] Failed to remove look:', error);
+    }
   },
 
   async clear(): Promise<void> {
-    await AsyncStorage.removeItem(STORAGE_KEYS.SAVED_LOOKS);
+    try {
+      await AsyncStorage.removeItem(STORAGE_KEYS.SAVED_LOOKS);
+    } catch (error) {
+      console.error('[Storage] Failed to clear looks:', error);
+    }
   },
 };
 

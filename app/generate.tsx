@@ -10,14 +10,23 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import * as FileSystem from 'expo-file-system';
-import * as MediaLibrary from 'expo-media-library';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
 import { createShadow } from '@/lib/styles';
 import { generateLook, uriToBase64 } from '@/lib/api';
+
+// Conditionally import native modules
+let FileSystem: any = null;
+let MediaLibrary: any = null;
+let Sharing: any = null;
+
+if (Platform.OS !== 'web') {
+  FileSystem = require('expo-file-system');
+  MediaLibrary = require('expo-media-library');
+  Sharing = require('expo-sharing');
+}
 
 type GenerationStatus = 'loading' | 'success' | 'error';
 
@@ -138,23 +147,35 @@ export default function GenerateScreen() {
     if (!result) return;
 
     try {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Please grant permission to save images.');
-        return;
+      if (Platform.OS === 'web') {
+        // Web: Create download link
+        const base64Data = result.includes(',') ? result.split(',')[1] : result;
+        const link = document.createElement('a');
+        link.href = `data:image/png;base64,${base64Data}`;
+        link.download = `zyora-look-${Date.now()}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        Alert.alert('Downloaded!', 'Image downloaded successfully.');
+      } else {
+        // Native: Save to media library
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission needed', 'Please grant permission to save images.');
+          return;
+        }
+
+        const filename = `zyora-look-${Date.now()}.png`;
+        const fileUri = FileSystem.documentDirectory + filename;
+
+        const base64Data = result.includes(',') ? result.split(',')[1] : result;
+        await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        await MediaLibrary.saveToLibraryAsync(fileUri);
+        Alert.alert('Saved!', 'Look saved to your photo library.');
       }
-
-      const filename = `zyora-look-${Date.now()}.png`;
-      const fileUri = FileSystem.documentDirectory + filename;
-
-      const base64Data = result.includes(',') ? result.split(',')[1] : result;
-      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      await MediaLibrary.saveToLibraryAsync(fileUri);
-
-      Alert.alert('Saved!', 'Look saved to your photo library.');
     } catch (error) {
       console.error('Download error:', error);
       Alert.alert('Error', 'Failed to save image.');
@@ -165,10 +186,47 @@ export default function GenerateScreen() {
     if (!result) return;
 
     try {
-      await Share.share({
-        message: 'Check out my new look created with Zyora!',
-        url: result,
-      });
+      if (Platform.OS === 'web') {
+        // Web: Use Web Share API if available, otherwise copy to clipboard
+        const base64Data = result.includes(',') ? result.split(',')[1] : result;
+        if (navigator.share) {
+          const blob = await fetch(`data:image/png;base64,${base64Data}`).then(r => r.blob());
+          const file = new File([blob], 'zyora-look.png', { type: 'image/png' });
+          await navigator.share({
+            title: 'My Zyora Look',
+            text: 'Check out my new look created with Zyora!',
+            files: [file],
+          });
+        } else {
+          await Share.share({
+            message: 'Check out my new look created with Zyora!',
+          });
+        }
+      } else if (Platform.OS === 'android') {
+        // Android: Save to temp file and share via expo-sharing
+        const filename = `zyora-look-${Date.now()}.png`;
+        const fileUri = FileSystem.cacheDirectory + filename;
+        
+        const base64Data = result.includes(',') ? result.split(',')[1] : result;
+        await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'image/png',
+            dialogTitle: 'Share your Zyora Look',
+          });
+        } else {
+          Alert.alert('Sharing not available', 'Sharing is not available on this device.');
+        }
+      } else {
+        // iOS: Can share data URL directly
+        await Share.share({
+          message: 'Check out my new look created with Zyora!',
+          url: result,
+        });
+      }
     } catch (error) {
       console.error('Share error:', error);
     }

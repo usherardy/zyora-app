@@ -1,6 +1,25 @@
 import { ENDPOINTS } from '@/constants';
 import { GenerationResult } from '@/types';
-import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
+
+// Conditionally import FileSystem only for native platforms
+let FileSystem: any = null;
+if (Platform.OS !== 'web') {
+  FileSystem = require('expo-file-system/legacy');
+}
+
+/**
+ * Convert base64 to Blob (for web)
+ */
+function base64ToBlob(base64: string, mimeType: string = 'image/jpeg'): Blob {
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: mimeType });
+}
 
 /**
  * Generate a virtual try-on look using the backend Vertex AI service
@@ -15,44 +34,54 @@ export async function generateLook(
     const cleanUserBase64 = userImageBase64.includes(',') ? userImageBase64.split(',')[1] : userImageBase64;
     const cleanFitBase64 = fitImageBase64.includes(',') ? fitImageBase64.split(',')[1] : fitImageBase64;
 
-    // For React Native, we need to create temporary files and send them
-    // Or we can send base64 directly if backend supports it
-    // Let's try sending as FormData with proper file objects
-
     const formData = new FormData();
-
-    // Convert base64 to blob-like object for React Native FormData
-    // React Native FormData accepts objects with uri, type, name
-    // But we need actual files, so let's create temp files first
-
-    const userFileUri = `${FileSystem.cacheDirectory}user_${Date.now()}.jpg`;
-    const fitFileUri = `${FileSystem.cacheDirectory}fit_${Date.now()}.jpg`;
-
-    // Write base64 to files
-    await FileSystem.writeAsStringAsync(userFileUri, cleanUserBase64, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-
-    await FileSystem.writeAsStringAsync(fitFileUri, cleanFitBase64, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-
-    // Create FormData with file objects
-    formData.append('userImgs', {
-      uri: userFileUri,
-      type: 'image/jpeg',
-      name: 'user.jpg',
-    } as any);
-
-    formData.append('fitImg', {
-      uri: fitFileUri,
-      type: 'image/jpeg',
-      name: 'fit.jpg',
-    } as any);
-
     const headers: Record<string, string> = {};
+    
     if (authToken) {
       headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
+    if (Platform.OS === 'web') {
+      // Web: Convert base64 to Blob and append to FormData
+      const userBlob = base64ToBlob(cleanUserBase64);
+      const fitBlob = base64ToBlob(cleanFitBase64);
+      
+      formData.append('userImgs', userBlob, 'user.jpg');
+      formData.append('fitImg', fitBlob, 'fit.jpg');
+    } else {
+      // Native: Create temp files and send as file URIs
+      const userFileUri = `${FileSystem.cacheDirectory}user_${Date.now()}.jpg`;
+      const fitFileUri = `${FileSystem.cacheDirectory}fit_${Date.now()}.jpg`;
+
+      await FileSystem.writeAsStringAsync(userFileUri, cleanUserBase64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      await FileSystem.writeAsStringAsync(fitFileUri, cleanFitBase64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      formData.append('userImgs', {
+        uri: userFileUri,
+        type: 'image/jpeg',
+        name: 'user.jpg',
+      } as any);
+
+      formData.append('fitImg', {
+        uri: fitFileUri,
+        type: 'image/jpeg',
+        name: 'fit.jpg',
+      } as any);
+
+      // Clean up temp files after request
+      setTimeout(async () => {
+        try {
+          await FileSystem.deleteAsync(userFileUri, { idempotent: true });
+          await FileSystem.deleteAsync(fitFileUri, { idempotent: true });
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+      }, 5000);
     }
 
     const response = await fetch(ENDPOINTS.GENERATE_LOOK, {
@@ -60,14 +89,6 @@ export async function generateLook(
       headers,
       body: formData,
     });
-
-    // Clean up temp files
-    try {
-      await FileSystem.deleteAsync(userFileUri, { idempotent: true });
-      await FileSystem.deleteAsync(fitFileUri, { idempotent: true });
-    } catch (e) {
-      // Ignore cleanup errors
-    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -179,8 +200,8 @@ export async function uriToBase64(uri: string): Promise<string> {
     return uri.split(',')[1];
   }
 
-  // For local file URIs, use FileSystem
-  if (uri.startsWith('file://') || uri.startsWith('ph://') || uri.startsWith('assets-library://')) {
+  // For local file URIs on native, use FileSystem
+  if (Platform.OS !== 'web' && (uri.startsWith('file://') || uri.startsWith('ph://') || uri.startsWith('assets-library://'))) {
     try {
       const base64 = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
@@ -192,7 +213,7 @@ export async function uriToBase64(uri: string): Promise<string> {
     }
   }
 
-  // For remote URLs, fetch and convert
+  // For web blob URLs or remote URLs, fetch and convert
   try {
     const response = await fetch(uri);
     const blob = await response.blob();

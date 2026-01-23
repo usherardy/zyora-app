@@ -1,31 +1,33 @@
 // API Configuration
-// For development: use EXPO_PUBLIC_API_URL from .env or default to device-specific URL
-// For production: defaults to Vercel deployment
-const isDev = process.env.NODE_ENV !== 'production' || __DEV__;
+// Two separate backends:
+// - STRIPE_API_URL: Stripe payments, user credits, profile management
+// - VERTEX_API_URL: Vertex AI image generation
 
-// Get the correct API URL for the current platform
-// Always use Vercel backend - it has Stripe and Vertex AI configured
-const getApiBaseUrl = () => {
-  console.log('[Constants] Using Vercel backend');
-  return 'https://zyora-backend-livid.vercel.app';
-};
+// Stripe & User Management Backend
+export const STRIPE_API_URL = 'https://zyora-backend-livid.vercel.app';
 
-export const API_BASE_URL = getApiBaseUrl();
+// Vertex AI Image Generation Backend
+export const VERTEX_API_URL = 'https://zyora-szo7.vercel.app';
 
-// Debug: Log the API URL
-console.log(`[Constants] API_BASE_URL: ${API_BASE_URL}`);
+// Debug: Log the API URLs
+console.log(`[Constants] STRIPE_API_URL: ${STRIPE_API_URL}`);
+console.log(`[Constants] VERTEX_API_URL: ${VERTEX_API_URL}`);
 
 // API Endpoints
 export const ENDPOINTS = {
-  GENERATE_LOOK: `${API_BASE_URL}/generate-look`,
-  FETCH_IMAGE: `${API_BASE_URL}/fetch-image`,
-  EXCHANGE_TOKEN: `${API_BASE_URL}/exchange-token`,
-  HEALTH: `${API_BASE_URL}/health`,
-  CREATE_PAYMENT_INTENT: `${API_BASE_URL}/create-payment-intent`,
-  CREATE_CHECKOUT_SESSION: `${API_BASE_URL}/create-checkout-session`,
-  VERIFY_CHECKOUT_SESSION: `${API_BASE_URL}/verify-checkout-session`,
-  UPDATE_PROFILE: `${API_BASE_URL}/update-profile`,
-  GET_USER_CREDITS: `${API_BASE_URL}/get-user-credits`,
+  // Vertex AI endpoints (image generation)
+  GENERATE_LOOK: `${VERTEX_API_URL}/api/generate-look`,
+  FETCH_IMAGE: `${VERTEX_API_URL}/api/fetch-image`,
+  EXCHANGE_TOKEN: `${VERTEX_API_URL}/api/exchange-token`,
+  HEALTH_VERTEX: `${VERTEX_API_URL}/api/health`,
+  
+  // Stripe & User Management endpoints (no /api/ prefix - routes go to root)
+  HEALTH: `${STRIPE_API_URL}/health`,
+  CREATE_PAYMENT_INTENT: `${STRIPE_API_URL}/create-payment-intent`,
+  CREATE_CHECKOUT_SESSION: `${STRIPE_API_URL}/create-checkout-session`,
+  VERIFY_CHECKOUT_SESSION: `${STRIPE_API_URL}/verify-checkout-session`,
+  UPDATE_PROFILE: `${STRIPE_API_URL}/update-profile`,
+  GET_USER_CREDITS: `${STRIPE_API_URL}/get-user-credits`,
 };
 
 // Firebase Config - Replace with your actual config
