@@ -4,11 +4,10 @@
 const isDev = process.env.NODE_ENV !== 'production' || __DEV__;
 
 // Get the correct API URL for the current platform
-// Always use production Vercel backend for AI generation (has Vertex AI credentials)
+// Always use Vercel backend - it has Stripe and Vertex AI configured
 const getApiBaseUrl = () => {
-  // Always use production backend - has Vertex AI credentials configured
-  console.log('[Constants] Using production Vercel backend');
-  return 'https://zyora-szo7.vercel.app';
+  console.log('[Constants] Using Vercel backend');
+  return 'https://zyora-backend-livid.vercel.app';
 };
 
 export const API_BASE_URL = getApiBaseUrl();
@@ -16,15 +15,17 @@ export const API_BASE_URL = getApiBaseUrl();
 // Debug: Log the API URL
 console.log(`[Constants] API_BASE_URL: ${API_BASE_URL}`);
 
-// API Endpoints - Vercel serverless functions use /api/ prefix
+// API Endpoints
 export const ENDPOINTS = {
-  GENERATE_LOOK: `${API_BASE_URL}/api/generate-look`,
-  FETCH_IMAGE: `${API_BASE_URL}/api/fetch-image`,
-  EXCHANGE_TOKEN: `${API_BASE_URL}/api/exchange-token`,
-  HEALTH: `${API_BASE_URL}/api/health`,
-  CREATE_PAYMENT_INTENT: `${API_BASE_URL}/api/create-payment-intent`,
-  CREATE_CHECKOUT_SESSION: `${API_BASE_URL}/api/create-checkout-session`,
-  VERIFY_CHECKOUT_SESSION: `${API_BASE_URL}/api/verify-checkout-session`,
+  GENERATE_LOOK: `${API_BASE_URL}/generate-look`,
+  FETCH_IMAGE: `${API_BASE_URL}/fetch-image`,
+  EXCHANGE_TOKEN: `${API_BASE_URL}/exchange-token`,
+  HEALTH: `${API_BASE_URL}/health`,
+  CREATE_PAYMENT_INTENT: `${API_BASE_URL}/create-payment-intent`,
+  CREATE_CHECKOUT_SESSION: `${API_BASE_URL}/create-checkout-session`,
+  VERIFY_CHECKOUT_SESSION: `${API_BASE_URL}/verify-checkout-session`,
+  UPDATE_PROFILE: `${API_BASE_URL}/update-profile`,
+  GET_USER_CREDITS: `${API_BASE_URL}/get-user-credits`,
 };
 
 // Firebase Config - Replace with your actual config

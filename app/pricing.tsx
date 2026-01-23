@@ -109,9 +109,9 @@ export default function PricingScreen() {
                     fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
                     fontSize: 20,
                     marginLeft: 16,
-                    fontWeight: 'bold'
+                    fontWeight: 'bold',
+                    flex: 1
                 }}>
-                    Get More Generations
                     Secure Checkout
                 </Text>
             </View>

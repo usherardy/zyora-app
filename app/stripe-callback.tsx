@@ -5,35 +5,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
 import { ENDPOINTS } from '@/constants';
-import { addUserCredits, recordPayment, saveUserCredits } from '@/lib/firebase';
 
 export default function StripeCallback() {
-    const params = useLocalSearchParams();
+    const { session_id, success } = useLocalSearchParams();
     const router = useRouter();
-    const { user, updateQuota } = useAuthStore();
+    const { user, refreshCredits } = useAuthStore();
     const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying');
     const [message, setMessage] = useState('Verifying your purchase...');
 
-    // Extract params - handle both direct and nested formats
-    const session_id = params.session_id as string | undefined;
-    const success = params.success as string | undefined;
-
-    console.log('[StripeCallback] Mounted with params:', JSON.stringify(params));
-    console.log('[StripeCallback] session_id:', session_id, 'success:', success);
-
     useEffect(() => {
-        console.log('[StripeCallback] useEffect triggered');
-        console.log('[StripeCallback] success:', success, 'session_id:', session_id);
-        
         if (success === 'true' && session_id) {
-            console.log('[StripeCallback] Verifying payment...');
-            verifyPayment(session_id);
-        } else if (session_id) {
-            // Sometimes success param might be missing, try to verify anyway
-            console.log('[StripeCallback] session_id present, verifying without success param...');
-            verifyPayment(session_id);
+            verifyPayment(session_id as string);
         } else {
-            console.log('[StripeCallback] No valid params, showing error');
             setStatus('error');
             setMessage('Payment was cancelled or failed.');
         }
@@ -41,68 +24,31 @@ export default function StripeCallback() {
 
     const verifyPayment = async (id: string) => {
         try {
-            console.log('[StripeCallback] Fetching:', `${ENDPOINTS.VERIFY_CHECKOUT_SESSION}?session_id=${id}`);
             const response = await fetch(`${ENDPOINTS.VERIFY_CHECKOUT_SESSION}?session_id=${id}`);
 
             if (!response.ok) {
-                console.error('[StripeCallback] Response not OK:', response.status);
                 throw new Error('Failed to verify payment');
             }
 
             const data = await response.json();
-            console.log('[StripeCallback] Verification response:', JSON.stringify(data));
 
             if (data.status === 'paid') {
-                console.log('[StripeCallback] Payment verified! Quota to add:', data.quota);
                 setStatus('success');
                 setMessage('Thank you! Your generation credits have been added.');
 
-                // Update local quota immediately for instant feedback
-                const currentMaxQuota = user?.maxQuota || 5;
-                const creditsToAdd = data.quota || 0;
-                const newQuota = currentMaxQuota + creditsToAdd;
-                console.log('[StripeCallback] Updating quota:', currentMaxQuota, '->', newQuota);
-                updateQuota(newQuota);
-
-                // Save to Firestore database for persistence
-                if (user?.uid) {
-                    try {
-                        console.log('[StripeCallback] Saving to Firestore for user:', user.uid);
-                        
-                        // Record the payment
-                        const paymentId = await recordPayment({
-                            uid: user.uid,
-                            sessionId: id,
-                            planId: data.planId || 'unknown',
-                            amount: 0,
-                            quota: creditsToAdd,
-                            status: 'paid',
-                        });
-                        console.log('[StripeCallback] Payment recorded with ID:', paymentId);
-
-                        // Update user credits in Firestore (pass email for new user creation)
-                        const creditsAdded = await addUserCredits(user.uid, creditsToAdd, user.email);
-                        console.log('[StripeCallback] Credits added to Firestore:', creditsAdded);
-                    } catch (dbError) {
-                        console.error('[StripeCallback] Firestore save error:', dbError);
-                        // Continue anyway - local storage has the update
-                    }
-                } else {
-                    console.warn('[StripeCallback] No user UID available for Firestore save');
-                }
+                // Refresh credits from backend to get updated quota
+                await refreshCredits();
 
                 // Wait a moment before redirecting
                 setTimeout(() => {
-                    console.log('[StripeCallback] Redirecting to studio...');
                     router.replace('/(tabs)/studio');
                 }, 2500);
             } else {
-                console.log('[StripeCallback] Payment not paid, status:', data.status);
                 setStatus('error');
                 setMessage(`Payment status: ${data.status}`);
             }
         } catch (error) {
-            console.error('[StripeCallback] Verify error:', error);
+            console.error('Verify error:', error);
             setStatus('error');
             setMessage('Could not verify payment. Please contact support if you were charged.');
         }

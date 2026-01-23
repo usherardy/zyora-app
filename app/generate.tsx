@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,7 +18,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
 import { createShadow } from '@/lib/styles';
 import { generateLook, uriToBase64 } from '@/lib/api';
-import { recordGeneration } from '@/lib/firebase';
 
 type GenerationStatus = 'loading' | 'success' | 'error';
 
@@ -115,26 +114,13 @@ export default function GenerateScreen() {
           setStatus('success');
           incrementQuota();
 
-          const generationId = Date.now().toString();
-          
           addSavedLook({
-            id: generationId,
+            id: Date.now().toString(),
             image: response.image,
             createdAt: Date.now(),
             userImageUri: userImg.uri,
             fitImageUri: fitImg.uri,
           });
-
-          // Record generation in Firestore for history
-          if (user?.uid) {
-            recordGeneration({
-              uid: user.uid,
-              generationId,
-              userImageUri: userImg.uri,
-              fitImageUri: fitImg.uri,
-              status: 'success',
-            }).catch(err => console.error('[Generate] Failed to record generation:', err));
-          }
         } else {
           throw new Error(response.error || 'Failed to generate look');
         }

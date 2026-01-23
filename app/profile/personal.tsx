@@ -6,6 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
+import { ENDPOINTS } from '@/constants';
 
 export default function PersonalInfoScreen() {
   const router = useRouter();
@@ -13,7 +14,6 @@ export default function PersonalInfoScreen() {
   const { user, setUser } = useAuthStore();
   
   const [displayName, setDisplayName] = useState(user?.displayName || '');
-  const [email, setEmail] = useState(user?.email || '');
   const [photoURL, setPhotoURL] = useState(user?.photoURL || '');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -37,24 +37,42 @@ export default function PersonalInfoScreen() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!user) return;
     
     setIsSaving(true);
     
-    const updatedUser = {
-      ...user,
-      displayName: displayName.trim() || user.displayName,
-      email: email.trim() || user.email,
-      photoURL: photoURL || user.photoURL,
-    };
-    
-    setUser(updatedUser);
-    
-    setTimeout(() => {
-      setIsSaving(false);
+    try {
+      // Save to backend/Firestore
+      const response = await fetch(ENDPOINTS.UPDATE_PROFILE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.uid,
+          displayName: displayName.trim() || user.displayName,
+          photoURL: photoURL || user.photoURL,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save profile');
+      }
+      
+      // Update local state
+      const updatedUser = {
+        ...user,
+        displayName: displayName.trim() || user.displayName,
+        photoURL: photoURL || user.photoURL,
+      };
+      
+      setUser(updatedUser);
       Alert.alert('Success', 'Profile updated successfully');
-    }, 500);
+    } catch (error) {
+      console.error('Profile save error:', error);
+      Alert.alert('Error', 'Failed to save profile. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -146,40 +164,19 @@ export default function PersonalInfoScreen() {
             />
           </View>
 
-          {/* Email */}
+          {/* Email (Read-only) */}
           <View>
             <Text style={{ color: '#9CA3AF', fontSize: 9, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>
               Email Address
             </Text>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="Enter your email"
-              placeholderTextColor="#D1D5DB"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              style={{
-                backgroundColor: '#F9FAFB',
-                borderBottomWidth: 2,
-                borderBottomColor: '#000',
-                paddingVertical: 16,
-                paddingHorizontal: 16,
-                fontSize: 16,
-                color: '#000',
-              }}
-            />
-          </View>
-
-          {/* User ID (Read Only) */}
-          <View>
-            <Text style={{ color: '#9CA3AF', fontSize: 9, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>
-              User ID
-            </Text>
-            <View style={{ backgroundColor: '#F9FAFB', paddingVertical: 16, paddingHorizontal: 16 }}>
-              <Text style={{ fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', color: '#9CA3AF' }}>
-                {user?.uid || 'N/A'}
+            <View style={{ backgroundColor: '#F9FAFB', paddingVertical: 16, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
+              <Text style={{ fontSize: 16, color: '#6B7280' }}>
+                {user?.email || 'No email'}
               </Text>
             </View>
+            <Text style={{ color: '#9CA3AF', fontSize: 10, marginTop: 4, fontStyle: 'italic' }}>
+              Email cannot be changed
+            </Text>
           </View>
         </View>
 

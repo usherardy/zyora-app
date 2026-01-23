@@ -1,5 +1,5 @@
-import { useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, Platform, Animated } from 'react-native';
+import { useRef, useEffect, useState, useCallback } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, Alert, Platform, Animated, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +16,38 @@ interface MenuItem {
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user, signOut, isDevMode } = useAuthStore();
+  const { user, signOut, isDevMode, refreshCredits } = useAuthStore();
+  
+  // Determine plan name based on currentPlan from backend
+  const getPlanName = () => {
+    if (isDevMode) return 'Developer Mode';
+    if (!user) return 'Free Plan';
+    
+    const { currentPlan } = user;
+    
+    // Map backend plan to display name
+    switch (currentPlan) {
+      case 'capsule':
+        return 'Capsule Collection';
+      case 'studio':
+        return 'Studio Collection';
+      case 'free':
+      default:
+        return 'Free Plan';
+    }
+  };
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refreshCredits();
+    } catch (error) {
+      console.error('Refresh failed:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshCredits]);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -153,6 +184,14 @@ export default function ProfileScreen() {
           paddingTop: 32,
         }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#000"
+            colors={['#000']}
+          />
+        }
       >
         {/* User Card with viewfinder style */}
         <Animated.View
@@ -196,7 +235,7 @@ export default function ProfileScreen() {
               {user.displayName}
             </Text>
             <Text style={{ color: '#9CA3AF', fontSize: 9, letterSpacing: 3, textTransform: 'uppercase', marginTop: 4, fontWeight: 'bold' }}>
-              {isDevMode ? 'Developer Mode' : 'Free Plan'}
+              {getPlanName()}
             </Text>
           </View>
         </Animated.View>

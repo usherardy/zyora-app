@@ -13,6 +13,7 @@ export interface UserProfile {
   photoURL: string | null;
   quota: number;
   maxQuota: number;
+  currentPlan?: string;
 }
 
 export enum AppView {

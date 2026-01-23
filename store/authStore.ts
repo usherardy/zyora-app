@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import { UserProfile, ImageAsset, SavedLook } from '@/types';
 import { userStorage, looksStorage, devModeStorage } from '@/lib/storage';
-import { MAX_FREE_QUOTA } from '@/constants';
+import { MAX_FREE_QUOTA, ENDPOINTS } from '@/constants';
 import { signOut as firebaseSignOut } from '@/lib/auth';
-import { onAuthStateChange, firebaseUserToProfile, getUserCredits, saveUserCredits, incrementUserQuota, recordGeneration } from '@/lib/firebase';
+import { onAuthStateChange, firebaseUserToProfile } from '@/lib/firebase';
 
 interface AuthState {
   user: UserProfile | null;
@@ -24,6 +24,7 @@ interface AuthState {
   removeSavedLook: (id: string) => void;
   incrementQuota: () => void;
   updateQuota: (newMaxQuota: number) => void;
+  refreshCredits: () => Promise<void>;
   signOut: () => void;
   signInAsDeveloper: () => void;
   signInWithGoogle: (googleUser: {
@@ -85,38 +86,47 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await looksStorage.remove(id);
   },
 
-  incrementQuota: async () => {
+  incrementQuota: () => {
     const { user } = get();
     if (user) {
       const updatedUser = { ...user, quota: user.quota + 1 };
       set({ user: updatedUser });
       userStorage.save(updatedUser);
-      console.log('[AuthStore] Quota incremented:', updatedUser.quota, '/', updatedUser.maxQuota);
-      
-      // Sync to Firestore
-      try {
-        await incrementUserQuota(user.uid);
-      } catch (error) {
-        console.error('[AuthStore] Failed to sync quota to Firestore:', error);
-      }
     }
   },
 
-  updateQuota: async (newMaxQuota: number) => {
+  updateQuota: (newMaxQuota: number) => {
     const { user } = get();
     if (user) {
-      // Update maxQuota to the new value (which should already include the added credits)
-      // Keep the current quota (used generations) unchanged
-      const updatedUser = { ...user, maxQuota: newMaxQuota };
+      const updatedUser = { ...user, maxQuota: newMaxQuota, quota: 0 };
       set({ user: updatedUser });
       userStorage.save(updatedUser);
-      console.log(`[AuthStore] Updated maxQuota to ${newMaxQuota}, current quota: ${user.quota}`);
+    }
+  },
 
-      // Sync to Firestore
+  refreshCredits: async () => {
+    const { user } = get();
+    if (user) {
       try {
-        await saveUserCredits(user.uid, { maxQuota: newMaxQuota });
+        const response = await fetch(`${ENDPOINTS.GET_USER_CREDITS}?userId=${user.uid}`);
+        if (response.ok) {
+          const data = await response.json();
+          const updatedUser = {
+            ...user,
+            quota: data.quota || 0,
+            maxQuota: data.maxQuota || 5,
+            // Also update profile data if available from backend
+            displayName: data.displayName || user.displayName,
+            photoURL: data.photoURL || user.photoURL,
+            email: data.email || user.email,
+            currentPlan: data.currentPlan || 'free',
+          };
+          set({ user: updatedUser });
+          userStorage.save(updatedUser);
+          console.log('[AuthStore] Profile refreshed:', data);
+        }
       } catch (error) {
-        console.error('[AuthStore] Failed to sync quota to Firestore:', error);
+        console.error('[AuthStore] Failed to refresh profile:', error);
       }
     }
   },
@@ -151,8 +161,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     devModeStorage.setEnabled(true);
   },
 
-  signInWithGoogle: async (googleUser) => {
-    // First set user with defaults, then sync from Firestore
+  signInWithGoogle: (googleUser) => {
     const user: UserProfile = {
       uid: googleUser.uid,
       displayName: googleUser.displayName,
@@ -163,72 +172,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     };
     set({ user, isDevMode: false });
     userStorage.save(user);
-
-    // Sync credits from Firestore
-    try {
-      const firestoreCredits = await getUserCredits(googleUser.uid);
-      if (firestoreCredits) {
-        // Use Firestore data (it's the source of truth)
-        const syncedUser = { 
-          ...user, 
-          quota: firestoreCredits.quota, 
-          maxQuota: firestoreCredits.maxQuota 
-        };
-        set({ user: syncedUser });
-        userStorage.save(syncedUser);
-        console.log('[AuthStore] Synced credits from Firestore:', firestoreCredits.quota, '/', firestoreCredits.maxQuota);
-      } else {
-        // Create new user in Firestore
-        await saveUserCredits(googleUser.uid, {
-          email: googleUser.email,
-          quota: 0,
-          maxQuota: MAX_FREE_QUOTA,
-        });
-        console.log('[AuthStore] Created new user in Firestore');
-      }
-    } catch (error) {
-      console.error('[AuthStore] Firestore sync error:', error);
-    }
   },
 
-  signInWithEmail: async (emailUser) => {
-    // First set user with defaults, then sync from Firestore
+  signInWithEmail: (user) => {
     const userProfile: UserProfile = {
-      uid: emailUser.uid,
-      displayName: emailUser.displayName,
-      email: emailUser.email,
-      photoURL: emailUser.photoURL,
+      uid: user.uid,
+      displayName: user.displayName,
+      email: user.email,
+      photoURL: user.photoURL,
       quota: 0,
       maxQuota: MAX_FREE_QUOTA,
     };
     set({ user: userProfile, isDevMode: false });
     userStorage.save(userProfile);
-
-    // Sync credits from Firestore
-    try {
-      const firestoreCredits = await getUserCredits(emailUser.uid);
-      if (firestoreCredits) {
-        // Use Firestore data (it's the source of truth)
-        const syncedUser = { 
-          ...userProfile, 
-          quota: firestoreCredits.quota, 
-          maxQuota: firestoreCredits.maxQuota 
-        };
-        set({ user: syncedUser });
-        userStorage.save(syncedUser);
-        console.log('[AuthStore] Synced credits from Firestore:', firestoreCredits.quota, '/', firestoreCredits.maxQuota);
-      } else {
-        // Create new user in Firestore
-        await saveUserCredits(emailUser.uid, {
-          email: emailUser.email,
-          quota: 0,
-          maxQuota: MAX_FREE_QUOTA,
-        });
-        console.log('[AuthStore] Created new user in Firestore');
-      }
-    } catch (error) {
-      console.error('[AuthStore] Firestore sync error:', error);
-    }
   },
 
   loadFromStorage: async () => {
