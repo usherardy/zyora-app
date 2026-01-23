@@ -11,7 +11,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
-import { API_BASE_URL } from '@/constants';
+import { ENDPOINTS } from '@/constants';
 
 const PLANS = [
     {
@@ -47,10 +47,10 @@ export default function PricingScreen() {
 
         try {
             console.log(`[Pricing] Creating checkout session for plan: ${plan.id}`);
-            console.log(`[Pricing] API URL: ${API_BASE_URL}/create-checkout-session`);
+            console.log(`[Pricing] API URL: ${ENDPOINTS.CREATE_CHECKOUT_SESSION}`);
             
             // Create checkout session on backend
-            const response = await fetch(`${API_BASE_URL}/create-checkout-session`, {
+            const response = await fetch(ENDPOINTS.CREATE_CHECKOUT_SESSION, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
