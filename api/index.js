@@ -422,9 +422,12 @@ Provide a detailed description of:
 });
 
 /**
- * Export for Vercel
+ * Export for Vercel Serverless Functions
  */
 module.exports = app;
+
+// Export as default for Vercel
+module.exports.default = app;
 
 // Only listen if running locally
 if (process.env.NODE_ENV !== 'production') {
