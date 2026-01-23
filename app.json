@@ -36,7 +36,15 @@
           "isAccessMediaLocationEnabled": true
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.zyora.app",
+          "enableGooglePay": true,
+          "urlScheme": "zyora"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

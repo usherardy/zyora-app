@@ -1,6 +1,6 @@
 import { ENDPOINTS } from '@/constants';
 import { GenerationResult } from '@/types';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 /**
  * Generate a virtual try-on look using the backend Vertex AI service
@@ -18,21 +18,21 @@ export async function generateLook(
     // For React Native, we need to create temporary files and send them
     // Or we can send base64 directly if backend supports it
     // Let's try sending as FormData with proper file objects
-    
+
     const formData = new FormData();
-    
+
     // Convert base64 to blob-like object for React Native FormData
     // React Native FormData accepts objects with uri, type, name
     // But we need actual files, so let's create temp files first
-    
+
     const userFileUri = `${FileSystem.cacheDirectory}user_${Date.now()}.jpg`;
     const fitFileUri = `${FileSystem.cacheDirectory}fit_${Date.now()}.jpg`;
-    
+
     // Write base64 to files
     await FileSystem.writeAsStringAsync(userFileUri, cleanUserBase64, {
       encoding: FileSystem.EncodingType.Base64,
     });
-    
+
     await FileSystem.writeAsStringAsync(fitFileUri, cleanFitBase64, {
       encoding: FileSystem.EncodingType.Base64,
     });
@@ -43,7 +43,7 @@ export async function generateLook(
       type: 'image/jpeg',
       name: 'user.jpg',
     } as any);
-    
+
     formData.append('fitImg', {
       uri: fitFileUri,
       type: 'image/jpeg',
@@ -139,6 +139,38 @@ export async function checkHealth(): Promise<boolean> {
 }
 
 /**
+ * Create a Stripe Payment Intent
+ */
+export async function createPaymentIntent(amount: number, currency: string = 'usd'): Promise<{ clientSecret: string } | null> {
+  try {
+    // In a real app, you would pass auth token here
+    // For now, we'll mock the response if the backend isn't ready, OR try to hit the endpoint
+    // Assuming backend endpoint exists: POST /create-payment-intent { amount, currency }
+
+    // MOCK RESPONSE FOR DEVELOPMENT (remove when backend is ready)
+    // return { clientSecret: 'pi_mock_secret_123' };
+
+    const response = await fetch(ENDPOINTS.CREATE_PAYMENT_INTENT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ amount, currency }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to create payment intent');
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Create payment intent error:', error);
+    return null;
+  }
+}
+
+/**
  * Convert image URI to base64
  */
 export async function uriToBase64(uri: string): Promise<string> {
@@ -164,7 +196,7 @@ export async function uriToBase64(uri: string): Promise<string> {
   try {
     const response = await fetch(uri);
     const blob = await response.blob();
-    
+
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {

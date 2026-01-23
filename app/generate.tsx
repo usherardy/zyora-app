@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,13 +18,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
 import { createShadow } from '@/lib/styles';
 import { generateLook, uriToBase64 } from '@/lib/api';
+import { recordGeneration } from '@/lib/firebase';
 
 type GenerationStatus = 'loading' | 'success' | 'error';
 
 export default function GenerateScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { userImg, fitImg, incrementQuota, addSavedLook } = useAuthStore();
+  const { user, userImg, fitImg, incrementQuota, addSavedLook } = useAuthStore();
 
   const [status, setStatus] = useState<GenerationStatus>('loading');
   const [progress, setProgress] = useState(0);
@@ -63,6 +64,34 @@ export default function GenerateScreen() {
 
     const generate = async () => {
       try {
+        // Check quota first
+        if (user && user.quota >= user.maxQuota) {
+          setStatus('error');
+          setErrorMsg(`You've used all ${user.maxQuota} generations this month. Upgrade to continue creating looks!`);
+
+          // Offer to upgrade after 2 seconds
+          setTimeout(() => {
+            if (Platform.OS === 'web') {
+              const upgrade = window.confirm('You\'re out of quota! Upgrade to get more generations?');
+              if (upgrade) {
+                router.replace('/pricing');
+              } else {
+                router.back();
+              }
+            } else {
+              Alert.alert(
+                'Out of Quota',
+                `You've used all ${user.maxQuota} generations. Upgrade to continue?`,
+                [
+                  { text: 'Later', style: 'cancel', onPress: () => router.back() },
+                  { text: 'Upgrade', onPress: () => router.replace('/pricing') },
+                ]
+              );
+            }
+          }, 2000);
+          return;
+        }
+
         if (!userImg || !fitImg) {
           throw new Error('Missing images');
         }
@@ -86,13 +115,26 @@ export default function GenerateScreen() {
           setStatus('success');
           incrementQuota();
 
+          const generationId = Date.now().toString();
+          
           addSavedLook({
-            id: Date.now().toString(),
+            id: generationId,
             image: response.image,
             createdAt: Date.now(),
             userImageUri: userImg.uri,
             fitImageUri: fitImg.uri,
           });
+
+          // Record generation in Firestore for history
+          if (user?.uid) {
+            recordGeneration({
+              uid: user.uid,
+              generationId,
+              userImageUri: userImg.uri,
+              fitImageUri: fitImg.uri,
+              status: 'success',
+            }).catch(err => console.error('[Generate] Failed to record generation:', err));
+          }
         } else {
           throw new Error(response.error || 'Failed to generate look');
         }
@@ -181,7 +223,7 @@ export default function GenerateScreen() {
       {status === 'loading' && (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, backgroundColor: '#FAFAFA' }}>
           {/* Stacked Cards */}
-          <View style={{ width: 240, aspectRatio: 3/4, position: 'relative', marginBottom: 48 }}>
+          <View style={{ width: 240, aspectRatio: 3 / 4, position: 'relative', marginBottom: 48 }}>
             <View
               style={{
                 position: 'absolute',
@@ -222,7 +264,7 @@ export default function GenerateScreen() {
               )}
             </View>
 
-            <Animated.View 
+            <Animated.View
               style={{
                 position: 'absolute',
                 top: 0, left: 0, right: 0, bottom: 0,

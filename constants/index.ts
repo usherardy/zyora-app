@@ -1,12 +1,30 @@
 // API Configuration
-export const API_BASE_URL = 'https://zyora-szo7.vercel.app';
+// For development: use EXPO_PUBLIC_API_URL from .env or default to device-specific URL
+// For production: defaults to Vercel deployment
+const isDev = process.env.NODE_ENV !== 'production' || __DEV__;
 
-// API Endpoints
+// Get the correct API URL for the current platform
+// Always use production Vercel backend for AI generation (has Vertex AI credentials)
+const getApiBaseUrl = () => {
+  // Always use production backend - has Vertex AI credentials configured
+  console.log('[Constants] Using production Vercel backend');
+  return 'https://zyora-szo7.vercel.app';
+};
+
+export const API_BASE_URL = getApiBaseUrl();
+
+// Debug: Log the API URL
+console.log(`[Constants] API_BASE_URL: ${API_BASE_URL}`);
+
+// API Endpoints - Vercel serverless functions use /api/ prefix
 export const ENDPOINTS = {
-  GENERATE_LOOK: `${API_BASE_URL}/generate-look`,
-  FETCH_IMAGE: `${API_BASE_URL}/fetch-image`,
-  EXCHANGE_TOKEN: `${API_BASE_URL}/exchange-token`,
-  HEALTH: `${API_BASE_URL}/health`,
+  GENERATE_LOOK: `${API_BASE_URL}/api/generate-look`,
+  FETCH_IMAGE: `${API_BASE_URL}/api/fetch-image`,
+  EXCHANGE_TOKEN: `${API_BASE_URL}/api/exchange-token`,
+  HEALTH: `${API_BASE_URL}/api/health`,
+  CREATE_PAYMENT_INTENT: `${API_BASE_URL}/api/create-payment-intent`,
+  CREATE_CHECKOUT_SESSION: `${API_BASE_URL}/api/create-checkout-session`,
+  VERIFY_CHECKOUT_SESSION: `${API_BASE_URL}/api/verify-checkout-session`,
 };
 
 // Firebase Config - Replace with your actual config
@@ -24,8 +42,11 @@ export const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
 export const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
 export const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || GOOGLE_WEB_CLIENT_ID;
 
+// Stripe Config
+export const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
+
 // App Constants
-export const MAX_FREE_QUOTA = 10;
+export const MAX_FREE_QUOTA = 5;
 export const MAX_IMAGE_SIZE_MB = 10;
 export const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 

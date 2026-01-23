@@ -41,12 +41,12 @@ export default function ProfileScreen() {
         'Are you sure you want to sign out?',
         [
           { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Sign Out', 
-            style: 'destructive', 
-            onPress: async () => { 
-              await signOut(); 
-            } 
+          {
+            text: 'Sign Out',
+            style: 'destructive',
+            onPress: async () => {
+              await signOut();
+            }
           },
         ]
       );
@@ -89,7 +89,7 @@ export default function ProfileScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
       {/* Header with Sign Out */}
-      <View 
+      <View
         style={{
           paddingTop: insets.top + 12,
           paddingBottom: 16,
@@ -103,20 +103,20 @@ export default function ProfileScreen() {
       >
         <View>
           <Text
-            style={{ 
-              fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', 
-              fontSize: 32, 
+            style={{
+              fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+              fontSize: 32,
               color: '#000',
               letterSpacing: -1,
             }}
           >
             ZYORA
           </Text>
-          <Text style={{ 
-            fontSize: 9, 
-            color: '#9CA3AF', 
+          <Text style={{
+            fontSize: 9,
+            color: '#9CA3AF',
             fontWeight: 'bold',
-            letterSpacing: 4, 
+            letterSpacing: 4,
             textTransform: 'uppercase',
             marginTop: 4,
           }}>
@@ -164,7 +164,7 @@ export default function ProfileScreen() {
             <View style={{ position: 'absolute', top: 4, right: 4, width: 12, height: 12, borderRightWidth: 1, borderTopWidth: 1, borderColor: '#000', zIndex: 10 }} />
             <View style={{ position: 'absolute', bottom: 4, left: 4, width: 12, height: 12, borderLeftWidth: 1, borderBottomWidth: 1, borderColor: '#000', zIndex: 10 }} />
             <View style={{ position: 'absolute', bottom: 4, right: 4, width: 12, height: 12, borderRightWidth: 1, borderBottomWidth: 1, borderColor: '#000', zIndex: 10 }} />
-            
+
             <View style={{
               width: 80,
               height: 80,
@@ -232,6 +232,7 @@ export default function ProfileScreen() {
             </View>
 
             <TouchableOpacity
+              onPress={() => router.push('/pricing')}
               style={{
                 backgroundColor: '#000',
                 paddingHorizontal: 20,
@@ -300,11 +301,11 @@ export default function ProfileScreen() {
           </View>
 
           {/* Version */}
-          <Text style={{ 
-            textAlign: 'center', 
-            color: '#D1D5DB', 
-            fontSize: 9, 
-            marginTop: 40, 
+          <Text style={{
+            textAlign: 'center',
+            color: '#D1D5DB',
+            fontSize: 9,
+            marginTop: 40,
             fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
             letterSpacing: 2,
           }}>
