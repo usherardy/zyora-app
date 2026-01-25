@@ -7,23 +7,22 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export default function PreferencesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  
+
   const [notifications, setNotifications] = useState(true);
   const [saveToGallery, setSaveToGallery] = useState(true);
   const [highQuality, setHighQuality] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
 
-  const SettingRow = ({ 
-    icon, 
-    label, 
-    sub, 
-    value, 
-    onToggle 
-  }: { 
-    icon: keyof typeof Ionicons.glyphMap; 
-    label: string; 
-    sub: string; 
-    value: boolean; 
+  const SettingRow = ({
+    icon,
+    label,
+    sub,
+    value,
+    onToggle
+  }: {
+    icon: keyof typeof Ionicons.glyphMap;
+    label: string;
+    sub: string;
+    value: boolean;
     onToggle: (val: boolean) => void;
   }) => (
     <View
@@ -94,13 +93,6 @@ export default function PreferencesScreen() {
               value={notifications}
               onToggle={setNotifications}
             />
-            <SettingRow
-              icon="moon-outline"
-              label="Dark Mode"
-              sub="Use dark theme throughout the app"
-              value={darkMode}
-              onToggle={setDarkMode}
-            />
           </View>
         </View>
 
@@ -124,48 +116,6 @@ export default function PreferencesScreen() {
               value={highQuality}
               onToggle={setHighQuality}
             />
-          </View>
-        </View>
-
-        {/* Storage Section */}
-        <View style={{ paddingTop: 32, paddingHorizontal: 24 }}>
-          <Text style={{ color: '#9CA3AF', fontSize: 9, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 12 }}>
-            Storage
-          </Text>
-          <View style={{ backgroundColor: '#F9FAFB', padding: 20 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
-              <Text style={{ color: '#6B7280', fontSize: 13 }}>Cache Size</Text>
-              <Text style={{ color: '#000', fontSize: 13, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>24.5 MB</Text>
-            </View>
-            <TouchableOpacity
-              style={{ backgroundColor: '#000', paddingVertical: 14, alignItems: 'center' }}
-              activeOpacity={0.8}
-            >
-              <Text style={{ color: '#fff', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', fontWeight: 'bold' }}>
-                Clear Cache
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* App Info */}
-        <View style={{ paddingTop: 32, paddingHorizontal: 24, paddingBottom: 40 }}>
-          <Text style={{ color: '#9CA3AF', fontSize: 9, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 12 }}>
-            About
-          </Text>
-          <View style={{ backgroundColor: '#F9FAFB', padding: 20 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
-              <Text style={{ color: '#6B7280', fontSize: 13 }}>Version</Text>
-              <Text style={{ color: '#000', fontSize: 13, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>1.0.0</Text>
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
-              <Text style={{ color: '#6B7280', fontSize: 13 }}>Build</Text>
-              <Text style={{ color: '#000', fontSize: 13, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>2024.01</Text>
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={{ color: '#6B7280', fontSize: 13 }}>SDK</Text>
-              <Text style={{ color: '#000', fontSize: 13, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>Expo 54</Text>
-            </View>
           </View>
         </View>
       </ScrollView>

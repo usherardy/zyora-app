@@ -35,7 +35,10 @@
           "savePhotosPermission": "Zyora needs permission to save photos",
           "isAccessMediaLocationEnabled": true,
           "android": {
-            "permissions": ["android.permission.READ_EXTERNAL_STORAGE", "android.permission.WRITE_EXTERNAL_STORAGE", "android.permission.AUDIO"]
+            "permissions": [
+              "android.permission.READ_EXTERNAL_STORAGE",
+              "android.permission.WRITE_EXTERNAL_STORAGE"
+            ]
           }
         }
       ],

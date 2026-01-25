@@ -25,7 +25,7 @@ let MediaLibrary: any = null;
 let Sharing: any = null;
 
 if (Platform.OS !== 'web') {
-  FileSystem = require('expo-file-system');
+  FileSystem = require('expo-file-system/legacy');
   MediaLibrary = require('expo-media-library');
   Sharing = require('expo-sharing');
 }
@@ -174,32 +174,46 @@ export default function GenerateScreen() {
         document.body.removeChild(link);
         Alert.alert('Downloaded!', 'Image downloaded successfully.');
       } else {
-        // Native: Save to media library
-        const { status } = await MediaLibrary.requestPermissionsAsync();
-        if (status !== 'granted') {
-          Alert.alert('Permission needed', 'Please grant permission to save images.');
-          return;
+        // Native (iOS/Android): Use sharing to save (works in Expo Go)
+        const filename = `zyora-look-${Date.now()}.png`;
+        const fileUri = FileSystem.cacheDirectory + filename;
+
+        // Handle both URL and base64 sources
+        if (result.startsWith('http')) {
+          // Firebase URL - download it first
+          const downloadResult = await FileSystem.downloadAsync(result, fileUri);
+          if (downloadResult.status !== 200) {
+            throw new Error('Failed to download image');
+          }
+        } else {
+          // Base64 data
+          const base64Data = result.includes(',') ? result.split(',')[1] : result;
+          await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
         }
 
-        const filename = `zyora-look-${Date.now()}.png`;
-        const fileUri = FileSystem.documentDirectory + filename;
-
-        const base64Data = result.includes(',') ? result.split(',')[1] : result;
-        await FileSystem.writeAsStringAsync(fileUri, base64Data, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-
-        await MediaLibrary.saveToLibraryAsync(fileUri);
-        Alert.alert('Saved!', 'Look saved to your photo library.');
+        // Use sharing to let users save to gallery
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'image/png',
+            dialogTitle: 'Save your look',
+            UTI: 'public.png',
+          });
+        } else {
+          Alert.alert('Not available', 'Saving is not available on this device.');
+        }
       }
     } catch (error) {
       console.error('Download error:', error);
-      Alert.alert('Error', 'Failed to save image.');
+      Alert.alert('Error', 'Failed to save image. Please try again.');
     }
   };
 
   const handleShare = async () => {
     if (!result) return;
+
+    const brandingMessage = "Experience your style evolution with ZYORA! ⚡️ Redesigned by AI.\n\nDownload ZYORA to weave your own look. #ZyoraStyle #FashionAI";
 
     try {
       if (Platform.OS === 'web') {
@@ -209,42 +223,72 @@ export default function GenerateScreen() {
           const blob = await fetch(`data:image/png;base64,${base64Data}`).then(r => r.blob());
           const file = new File([blob], 'zyora-look.png', { type: 'image/png' });
           await navigator.share({
-            title: 'My Zyora Look',
-            text: 'Check out my new look created with Zyora!',
+            title: 'My ZYORA Look',
+            text: brandingMessage,
             files: [file],
           });
         } else {
           await Share.share({
-            message: 'Check out my new look created with Zyora!',
+            message: brandingMessage,
           });
         }
-      } else if (Platform.OS === 'android') {
-        // Android: Save to temp file and share via expo-sharing
-        const filename = `zyora-look-${Date.now()}.png`;
+      } else if (Platform.OS === 'ios') {
+        // iOS: Can share URL with message using RN Share
+        const filename = `zyora-share-${Date.now()}.png`;
         const fileUri = FileSystem.cacheDirectory + filename;
 
-        const base64Data = result.includes(',') ? result.split(',')[1] : result;
-        await FileSystem.writeAsStringAsync(fileUri, base64Data, {
-          encoding: FileSystem.EncodingType.Base64,
+        // Handle both URL and base64 sources
+        if (result.startsWith('http')) {
+          const downloadResult = await FileSystem.downloadAsync(result, fileUri);
+          if (downloadResult.status !== 200) {
+            throw new Error('Failed to download image');
+          }
+        } else {
+          const base64Data = result.includes(',') ? result.split(',')[1] : result;
+          await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+        }
+
+        // iOS supports message + URL together
+        await Share.share({
+          message: brandingMessage,
+          url: fileUri,
         });
+      } else {
+        // Android: Download image and share file using expo-sharing
+        // (Note: expo-sharing sends the IMAGE but not text together - Android limitation)
+        const filename = `zyora-share-${Date.now()}.png`;
+        const fileUri = FileSystem.cacheDirectory + filename;
+
+        // Handle both URL and base64 sources
+        if (result.startsWith('http')) {
+          // Firebase URL - download it first
+          const downloadResult = await FileSystem.downloadAsync(result, fileUri);
+          if (downloadResult.status !== 200) {
+            throw new Error('Failed to download image');
+          }
+        } else {
+          // Base64 data
+          const base64Data = result.includes(',') ? result.split(',')[1] : result;
+          await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+        }
 
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(fileUri, {
             mimeType: 'image/png',
-            dialogTitle: 'Share your Zyora Look',
+            dialogTitle: brandingMessage,
+            UTI: 'public.png',
           });
         } else {
           Alert.alert('Sharing not available', 'Sharing is not available on this device.');
         }
-      } else {
-        // iOS: Can share data URL directly
-        await Share.share({
-          message: 'Check out my new look created with Zyora!',
-          url: result,
-        });
       }
     } catch (error) {
       console.error('Share error:', error);
+      Alert.alert('Error', 'Failed to share image. Please try again.');
     }
   };
 

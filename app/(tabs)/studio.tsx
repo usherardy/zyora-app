@@ -78,7 +78,7 @@ export default function StudioScreen() {
 
   const pickImage = async (type: 'user' | 'fit') => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
+
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'Please grant camera roll permissions to upload images.');
       return;
@@ -141,7 +141,7 @@ export default function StudioScreen() {
 
   const handleGenerate = () => {
     if (!isReady) return;
-    
+
     if (user && user.quota >= user.maxQuota) {
       Alert.alert(
         'Quota Reached',
@@ -189,7 +189,7 @@ export default function StudioScreen() {
                   contentFit="cover"
                   transition={300}
                 />
-                
+
                 {/* Remove Button */}
                 <TouchableOpacity
                   onPress={() => type === 'user' ? setUserImg(null) : setFitImg(null)}
@@ -231,20 +231,20 @@ export default function StudioScreen() {
                   <View style={{ position: 'absolute', left: 15, top: 0, width: 1, height: 32, backgroundColor: '#D1D5DB' }} />
                   <View style={{ position: 'absolute', top: 15, left: 0, width: 32, height: 1, backgroundColor: '#D1D5DB' }} />
                 </View>
-                
-                <Text style={{ 
-                  fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', 
-                  fontSize: 32, 
+
+                <Text style={{
+                  fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+                  fontSize: 32,
                   color: '#D1D5DB',
                   fontStyle: 'italic',
                   marginBottom: 8,
                 }}>
                   {number}
                 </Text>
-                <Text style={{ 
-                  fontSize: 9, 
-                  letterSpacing: 3, 
-                  textTransform: 'uppercase', 
+                <Text style={{
+                  fontSize: 9,
+                  letterSpacing: 3,
+                  textTransform: 'uppercase',
                   color: '#9CA3AF',
                   fontWeight: '500',
                 }}>
@@ -259,12 +259,12 @@ export default function StudioScreen() {
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: '#fff' }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* Editorial Top Bar */}
-      <View 
+      <View
         style={{
           paddingTop: insets.top + 12,
           paddingBottom: 16,
@@ -277,19 +277,19 @@ export default function StudioScreen() {
         }}
       >
         <View>
-          <Text style={{ 
-            fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', 
-            fontSize: 32, 
+          <Text style={{
+            fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+            fontSize: 32,
             color: '#000',
             letterSpacing: -1,
           }}>
             ZYORA
           </Text>
-          <Text style={{ 
-            fontSize: 9, 
-            color: '#9CA3AF', 
+          <Text style={{
+            fontSize: 9,
+            color: '#9CA3AF',
             fontWeight: 'bold',
-            letterSpacing: 4, 
+            letterSpacing: 4,
             textTransform: 'uppercase',
             marginTop: 4,
           }}>
@@ -305,13 +305,13 @@ export default function StudioScreen() {
             </Text>
             <View style={{ flexDirection: 'row', gap: 2 }}>
               {Array.from({ length: 5 }).map((_, i) => (
-                <View 
-                  key={i} 
-                  style={{ 
-                    width: 4, 
-                    height: 12, 
+                <View
+                  key={i}
+                  style={{
+                    width: 4,
+                    height: 12,
                     backgroundColor: i < (user.maxQuota - user.quota) ? '#000' : '#E5E7EB',
-                  }} 
+                  }}
                 />
               ))}
             </View>
@@ -326,11 +326,11 @@ export default function StudioScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {/* Image Grid */}
-        <Animated.View 
-          style={{ 
+        <Animated.View
+          style={{
             opacity: fadeAnim,
-            flexDirection: 'row', 
-            marginTop: 24,
+            flexDirection: 'row',
+            marginTop: 32, // Elegant spacing
             height: CARD_HEIGHT * 1.4,
             gap: 16,
           }}
@@ -346,11 +346,11 @@ export default function StudioScreen() {
           <Animated.View
             style={{
               opacity: fadeAnim,
-              marginTop: 16,
+              marginTop: 32, // Elegant spacing
             }}
           >
-            <View 
-              style={{ 
+            <View
+              style={{
                 height: 48,
                 backgroundColor: '#FFFFFF',
                 borderRadius: 24,
@@ -407,7 +407,7 @@ export default function StudioScreen() {
         <Animated.View
           style={{
             opacity: fadeAnim,
-            marginTop: 24,
+            marginTop: 32, // Elegant spacing
             backgroundColor: '#F9FAFB',
             borderLeftWidth: 2,
             borderLeftColor: '#000',
@@ -418,12 +418,12 @@ export default function StudioScreen() {
           }}
         >
           <Ionicons name="scan-outline" size={18} color="#000" />
-          <Text style={{ 
+          <Text style={{
             flex: 1,
-            fontSize: 10, 
+            fontSize: 10,
             lineHeight: 16,
-            letterSpacing: 1, 
-            textTransform: 'uppercase', 
+            letterSpacing: 1,
+            textTransform: 'uppercase',
             color: '#6B7280',
           }}>
             Ensure subject is clearly visible. Garment should be isolated for optimal weaving.
@@ -457,16 +457,16 @@ export default function StudioScreen() {
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <Ionicons name="sparkles" size={16} color="#C4B5FD" />
-            <Text 
-              style={{ 
-                color: '#fff', 
-                fontSize: 11, 
+            <Text
+              style={{
+                color: '#fff',
+                fontSize: 11,
                 fontWeight: 'bold',
-                letterSpacing: 3, 
+                letterSpacing: 3,
                 textTransform: 'uppercase',
               }}
             >
-              Weave Look
+              Generate Look
             </Text>
           </View>
         </TouchableOpacity>

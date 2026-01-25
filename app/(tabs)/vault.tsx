@@ -49,16 +49,20 @@ export default function VaultScreen() {
 
   const handleSaveImage = async (imageUrl: string) => {
     try {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Please allow access to save photos.');
-        return;
-      }
-
       const fileUri = FileSystem.cacheDirectory + `zyora_${Date.now()}.png`;
       const { uri } = await FileSystem.downloadAsync(imageUrl, fileUri);
-      await MediaLibrary.saveToLibraryAsync(uri);
-      Alert.alert('Saved', 'Image saved to your gallery.');
+
+      // Use sharing instead of MediaLibrary (works in Expo Go)
+      const Sharing = require('expo-sharing');
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'image/png',
+          dialogTitle: 'Save your look',
+          UTI: 'public.png',
+        });
+      } else {
+        Alert.alert('Not available', 'Saving is not available on this device.');
+      }
     } catch (error) {
       console.error('Save error:', error);
       Alert.alert('Error', 'Failed to save image.');
@@ -94,12 +98,35 @@ export default function VaultScreen() {
 
   const handleShare = async (imageUrl: string) => {
     try {
-      await Share.share({
-        url: imageUrl,
-        message: 'Check out my look from ZYORA!',
-      });
+      const brandingMessage = "Experience your style evolution with ZYORA! ⚡️ Redesigned by AI.\n\nDownload ZYORA to weave your own look. #ZyoraStyle #FashionAI";
+
+      // Download image to local cache first
+      const filename = `zyora-share-${Date.now()}.png`;
+      const fileUri = FileSystem.cacheDirectory + filename;
+      const { uri } = await FileSystem.downloadAsync(imageUrl, fileUri);
+
+      if (Platform.OS === 'ios') {
+        // iOS: Can share URL with message
+        await Share.share({
+          message: brandingMessage,
+          url: uri,
+        });
+      } else {
+        // Android: Use expo-sharing for file sharing
+        const Sharing = require('expo-sharing');
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri, {
+            mimeType: 'image/png',
+            dialogTitle: brandingMessage,
+            UTI: 'public.png',
+          });
+        } else {
+          Alert.alert('Sharing not available', 'Sharing is not available on this device.');
+        }
+      }
     } catch (error) {
-      console.error(error);
+      console.error('Share error:', error);
+      Alert.alert('Error', 'Failed to share image.');
     }
   };
 
