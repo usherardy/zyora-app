@@ -1,18 +1,39 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, FlatList, Dimensions, Alert, Platform, Animated } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
 import { SavedLook } from '@/types';
+import { fetchUserLooks, deleteGeneratedLook } from '@/lib/storageService';
 
 const { width } = Dimensions.get('window');
 const ITEM_SIZE = (width - 48 - 8) / 2;
 
 export default function VaultScreen() {
   const insets = useSafeAreaInsets();
-  const { savedLooks, removeSavedLook } = useAuthStore();
+  const { user, savedLooks, removeSavedLook } = useAuthStore();
+  const [loading, setLoading] = useState(true);
+  const [firestoreLooks, setFirestoreLooks] = useState<any[]>([]);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Fetch looks from Firestore on component mount
+  useEffect(() => {
+    const loadLooks = async () => {
+      if (user) {
+        try {
+          const looks = await fetchUserLooks(user.uid);
+          setFirestoreLooks(looks);
+        } catch (error) {
+          console.error('Error loading looks from Firestore:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    
+    loadLooks();
+  }, [user]);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -22,7 +43,7 @@ export default function VaultScreen() {
     }).start();
   }, []);
 
-  const handleDelete = (id: string) => {
+  const handleDelete = (look: any) => {
     Alert.alert(
       'Delete Look',
       'Are you sure you want to delete this look?',
@@ -31,13 +52,30 @@ export default function VaultScreen() {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => removeSavedLook(id),
+          onPress: async () => {
+            try {
+              if (user) {
+                // Check if it's a Firestore look or local look
+                if (look.firestoreId) {
+                  await deleteGeneratedLook(user.uid, look);
+                  // Update local state
+                  setFirestoreLooks(prev => prev.filter(l => l.id !== look.id));
+                } else {
+                  // Local storage look
+                  removeSavedLook(look.id);
+                }
+              }
+            } catch (error) {
+              console.error('Error deleting look:', error);
+              Alert.alert('Error', 'Failed to delete look');
+            }
+          },
         },
       ]
     );
   };
 
-  const renderItem = ({ item, index }: { item: SavedLook; index: number }) => (
+  const renderItem = ({ item, index }: { item: any; index: number }) => (
     <View style={{ width: ITEM_SIZE, position: 'relative', padding: 4 }}>
       {/* Corner Brackets */}
       <View style={{ position: 'absolute', top: 4, left: 4, width: 12, height: 12, borderLeftWidth: 1, borderTopWidth: 1, borderColor: '#000', zIndex: 10 }} />
@@ -69,7 +107,7 @@ export default function VaultScreen() {
           <Text style={{ color: '#fff', fontSize: 8, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', letterSpacing: 1 }}>
             LOOK_{String(index + 1).padStart(2, '0')}.JPG
           </Text>
-          <TouchableOpacity onPress={() => handleDelete(item.id)}>
+          <TouchableOpacity onPress={() => handleDelete(item)}>
             <Ionicons name="trash-outline" size={12} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -146,15 +184,21 @@ export default function VaultScreen() {
           fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', 
           color: '#9CA3AF',
         }}>
-          {savedLooks.length} ITEMS
+          {loading ? 'LOADING...' : `${(savedLooks.length + firestoreLooks.length)} ITEMS`}
         </Text>
       </Animated.View>
 
-      {savedLooks.length === 0 ? (
+      {loading ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: '#9CA3AF', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>
+            LOADING...
+          </Text>
+        </View>
+      ) : savedLooks.length === 0 && firestoreLooks.length === 0 ? (
         renderEmptyState()
       ) : (
         <FlatList
-          data={savedLooks}
+          data={[...firestoreLooks, ...savedLooks]}
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
           numColumns={2}

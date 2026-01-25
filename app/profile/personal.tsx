@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
 import { ENDPOINTS } from '@/constants';
+import { uploadProfilePicture } from '@/lib/storageService';
 
 export default function PersonalInfoScreen() {
   const router = useRouter();
@@ -43,6 +44,20 @@ export default function PersonalInfoScreen() {
     setIsSaving(true);
     
     try {
+      let finalPhotoURL = photoURL || user.photoURL;
+      
+      // Upload new profile picture if changed and it's a local URI
+      if (photoURL && photoURL !== user.photoURL && photoURL.startsWith('file://')) {
+        try {
+          finalPhotoURL = await uploadProfilePicture(user.uid, photoURL);
+        } catch (uploadError) {
+          console.error('Failed to upload profile picture:', uploadError);
+          Alert.alert('Error', 'Failed to upload profile picture');
+          setIsSaving(false);
+          return;
+        }
+      }
+      
       // Save to backend/Firestore
       const response = await fetch(ENDPOINTS.UPDATE_PROFILE, {
         method: 'POST',
@@ -50,7 +65,7 @@ export default function PersonalInfoScreen() {
         body: JSON.stringify({
           userId: user.uid,
           displayName: displayName.trim() || user.displayName,
-          photoURL: photoURL || user.photoURL,
+          photoURL: finalPhotoURL,
         }),
       });
       
@@ -62,7 +77,7 @@ export default function PersonalInfoScreen() {
       const updatedUser = {
         ...user,
         displayName: displayName.trim() || user.displayName,
-        photoURL: photoURL || user.photoURL,
+        photoURL: finalPhotoURL,
       };
       
       setUser(updatedUser);

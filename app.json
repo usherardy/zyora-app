@@ -33,7 +33,10 @@
         {
           "photosPermission": "Zyora needs access to save generated looks to your gallery",
           "savePhotosPermission": "Zyora needs permission to save photos",
-          "isAccessMediaLocationEnabled": true
+          "isAccessMediaLocationEnabled": true,
+          "android": {
+            "permissions": ["android.permission.READ_EXTERNAL_STORAGE", "android.permission.WRITE_EXTERNAL_STORAGE", "android.permission.AUDIO"]
+          }
         }
       ],
       "expo-font",

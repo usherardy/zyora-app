@@ -15,6 +15,13 @@ import {
   Auth,
   UserCredential
 } from 'firebase/auth';
+import { 
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  StorageReference
+} from 'firebase/storage';
 // @ts-ignore - getReactNativePersistence exists in firebase/auth but not in types
 import { getReactNativePersistence } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -34,6 +41,7 @@ const firebaseConfig = {
 // Initialize Firebase
 let app: FirebaseApp;
 let auth: Auth;
+let storage: any;
 
 function initializeFirebaseAuth(firebaseApp: FirebaseApp): Auth {
   try {
@@ -55,12 +63,14 @@ function initializeFirebaseAuth(firebaseApp: FirebaseApp): Auth {
 if (getApps().length === 0) {
   app = initializeApp(firebaseConfig);
   auth = initializeFirebaseAuth(app);
+  storage = getStorage(app);
 } else {
   app = getApp();
   auth = getAuth(app);
+  storage = getStorage(app);
 }
 
-export { app, auth };
+export { app, auth, storage };
 
 // Sign in with Google credential
 export async function signInWithGoogleCredential(idToken: string, accessToken?: string) {
@@ -132,6 +142,39 @@ export async function resetPassword(email: string): Promise<void> {
     await sendPasswordResetEmail(auth, email);
   } catch (error) {
     console.error('Password reset error:', error);
+    throw error;
+  }
+}
+
+// Upload profile picture to Firebase Storage
+export async function uploadProfilePicture(userId: string, imageUri: string): Promise<string> {
+  try {
+    const response = await fetch(imageUri);
+    const blob = await response.blob();
+    const storageRef: StorageReference = ref(storage, `profile-pictures/${userId}`);
+    await uploadBytes(storageRef, blob);
+    const downloadURL = await getDownloadURL(storageRef);
+    return downloadURL;
+  } catch (error) {
+    console.error('Profile picture upload error:', error);
+    throw error;
+  }
+}
+
+// Upload generated look to Firebase Storage
+export async function uploadGeneratedLook(userId: string, imageData: string, lookId: string): Promise<string> {
+  try {
+    const storageRef: StorageReference = ref(storage, `generated-looks/${userId}/${lookId}.png`);
+    
+    // Convert base64 to blob
+    const response = await fetch(`data:image/png;base64,${imageData}`);
+    const blob = await response.blob();
+    
+    await uploadBytes(storageRef, blob);
+    const downloadURL = await getDownloadURL(storageRef);
+    return downloadURL;
+  } catch (error) {
+    console.error('Generated look upload error:', error);
     throw error;
   }
 }

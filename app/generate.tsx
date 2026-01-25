@@ -14,8 +14,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
+import { generateLook } from '@/lib/api';
 import { createShadow } from '@/lib/styles';
-import { generateLook, uriToBase64 } from '@/lib/api';
+import { uploadGeneratedLook } from '@/lib/storageService';
+import { uriToBase64 } from '@/lib/api';
 
 // Conditionally import native modules
 let FileSystem: any = null;
@@ -123,13 +125,29 @@ export default function GenerateScreen() {
           setStatus('success');
           incrementQuota();
 
-          addSavedLook({
-            id: Date.now().toString(),
-            image: response.image,
-            createdAt: Date.now(),
-            userImageUri: userImg.uri,
-            fitImageUri: fitImg.uri,
-          });
+          // Upload to Firebase Storage and save to vault
+          const lookId = Date.now().toString();
+          try {
+            const imageUrl = await uploadGeneratedLook(user!.uid, response.image, lookId);
+            
+            addSavedLook({
+              id: lookId,
+              image: imageUrl, // Use Firebase Storage URL
+              createdAt: Date.now(),
+              userImageUri: userImg.uri,
+              fitImageUri: fitImg.uri,
+            });
+          } catch (uploadError) {
+            console.error('Failed to upload to Firebase Storage:', uploadError);
+            // Fallback: save locally with base64
+            addSavedLook({
+              id: lookId,
+              image: response.image,
+              createdAt: Date.now(),
+              userImageUri: userImg.uri,
+              fitImageUri: fitImg.uri,
+            });
+          }
         } else {
           throw new Error(response.error || 'Failed to generate look');
         }

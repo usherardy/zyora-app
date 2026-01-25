@@ -36,5 +36,7 @@ export interface SavedLook {
   createdAt: number;
   userImageUri?: string;
   fitImageUri?: string;
+  firestoreId?: string; // For Firestore looks
+  storagePath?: string; // For Storage path
 }
 
