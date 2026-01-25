@@ -110,12 +110,20 @@ export default function GenerateScreen() {
           setProgress((prev) => (prev < 90 ? prev + 0.5 : prev));
         }, 100);
 
-        const [userBase64, fitBase64] = await Promise.all([
-          userImg.base64 || uriToBase64(userImg.uri),
-          fitImg.base64 || uriToBase64(fitImg.uri),
-        ]);
-
-        const response = await generateLook(userBase64, fitBase64);
+        // ===== TEST MODE: MOCK GENERATION - REMOVE AFTER TESTING =====
+        // Using a tiny 1x1 pink test image to avoid consuming API credits
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate delay
+        const response = {
+          success: true,
+          image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='
+        };
+        // ===== ORIGINAL CODE (UNCOMMENT AFTER TESTING) =====
+        // const [userBase64, fitBase64] = await Promise.all([
+        //   userImg.base64 || uriToBase64(userImg.uri),
+        //   fitImg.base64 || uriToBase64(fitImg.uri),
+        // ]);
+        // const response = await generateLook(userBase64, fitBase64);
+        // ===== END TEST MODE =====
 
         clearInterval(interval);
         setProgress(100);
@@ -129,27 +137,17 @@ export default function GenerateScreen() {
           const lookId = Date.now().toString();
           try {
             const imageUrl = await uploadGeneratedLook(user!.uid, response.image, lookId);
-            
-            addSavedLook({
-              id: lookId,
-              image: imageUrl, // Use Firebase Storage URL
-              createdAt: Date.now(),
-              userImageUri: userImg.uri,
-              fitImageUri: fitImg.uri,
-            });
+
+            // Removed local addSavedLook to rely purely on Firebase
+            console.log('Saved to Firestore via uploadGeneratedLook');
           } catch (uploadError) {
             console.error('Failed to upload to Firebase Storage:', uploadError);
             // Fallback: save locally with base64
-            addSavedLook({
-              id: lookId,
-              image: response.image,
-              createdAt: Date.now(),
-              userImageUri: userImg.uri,
-              fitImageUri: fitImg.uri,
-            });
+            // REMOVED: addSavedLook call as we are strictly Firebase-only now
+            Alert.alert('Upload Failed', 'Your look was generated but failed to save to the cloud.');
           }
         } else {
-          throw new Error(response.error || 'Failed to generate look');
+          throw new Error((response as any).error || 'Failed to generate look');
         }
       } catch (error: any) {
         console.error('Generation error:', error);
@@ -224,7 +222,7 @@ export default function GenerateScreen() {
         // Android: Save to temp file and share via expo-sharing
         const filename = `zyora-look-${Date.now()}.png`;
         const fileUri = FileSystem.cacheDirectory + filename;
-        
+
         const base64Data = result.includes(',') ? result.split(',')[1] : result;
         await FileSystem.writeAsStringAsync(fileUri, base64Data, {
           encoding: FileSystem.EncodingType.Base64,

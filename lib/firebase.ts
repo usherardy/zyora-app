@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { 
-  getAuth, 
+import {
+  getAuth,
   initializeAuth,
   GoogleAuthProvider,
   signInWithCredential,
@@ -15,7 +15,7 @@ import {
   Auth,
   UserCredential
 } from 'firebase/auth';
-import { 
+import {
   getStorage,
   ref,
   uploadBytes,
@@ -165,12 +165,22 @@ export async function uploadProfilePicture(userId: string, imageUri: string): Pr
 export async function uploadGeneratedLook(userId: string, imageData: string, lookId: string): Promise<string> {
   try {
     const storageRef: StorageReference = ref(storage, `generated-looks/${userId}/${lookId}.png`);
-    
-    // Convert base64 to blob
-    const response = await fetch(`data:image/png;base64,${imageData}`);
-    const blob = await response.blob();
-    
-    await uploadBytes(storageRef, blob);
+
+    // Clean base64 data (remove data URL prefix if present)
+    const cleanBase64 = imageData.includes(',') ? imageData.split(',')[1] : imageData;
+
+    // Convert to Uint8Array (avoids Blob creation issues on React Native)
+    const binaryString = atob(cleanBase64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    await uploadBytes(storageRef, bytes, {
+      contentType: 'image/png',
+    });
+
     const downloadURL = await getDownloadURL(storageRef);
     return downloadURL;
   } catch (error) {

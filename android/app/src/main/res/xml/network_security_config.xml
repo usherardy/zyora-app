@@ -13,5 +13,6 @@
         <domain includeSubdomains="true">googleapis.com</domain>
         <domain includeSubdomains="true">google.com</domain>
         <domain includeSubdomains="true">firebasestorage.googleapis.com</domain>
+        <domain includeSubdomains="true">firebasestorage.app</domain>
     </domain-config>
 </network-security-config>

@@ -1,20 +1,24 @@
 import { useRef, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Dimensions, Alert, Platform, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, Dimensions, Alert, Platform, Animated, StatusBar, Modal, Share } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as MediaLibrary from 'expo-media-library';
 import { useAuthStore } from '@/store/authStore';
-import { SavedLook } from '@/types';
-import { fetchUserLooks, deleteGeneratedLook } from '@/lib/storageService';
+import { fetchUserLooks } from '@/lib/storageService';
+import { deleteLook, deleteAllUserLooks } from '@/lib/deletionService';
 
-const { width } = Dimensions.get('window');
-const ITEM_SIZE = (width - 48 - 8) / 2;
+const { width, height } = Dimensions.get('window');
+const GAP = 12;
+const ITEM_WIDTH = (width - GAP * 3) / 2;
 
 export default function VaultScreen() {
   const insets = useSafeAreaInsets();
-  const { user, savedLooks, removeSavedLook } = useAuthStore();
+  const { user } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [firestoreLooks, setFirestoreLooks] = useState<any[]>([]);
+  const [selectedImage, setSelectedImage] = useState<any>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // Fetch looks from Firestore on component mount
@@ -31,22 +35,40 @@ export default function VaultScreen() {
         }
       }
     };
-    
+
     loadLooks();
   }, [user]);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
-      duration: 400,
+      duration: 600,
       useNativeDriver: true,
     }).start();
   }, []);
 
-  const handleDelete = (look: any) => {
+  const handleSaveImage = async (imageUrl: string) => {
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please allow access to save photos.');
+        return;
+      }
+
+      const fileUri = FileSystem.cacheDirectory + `zyora_${Date.now()}.png`;
+      const { uri } = await FileSystem.downloadAsync(imageUrl, fileUri);
+      await MediaLibrary.saveToLibraryAsync(uri);
+      Alert.alert('Saved', 'Image saved to your gallery.');
+    } catch (error) {
+      console.error('Save error:', error);
+      Alert.alert('Error', 'Failed to save image.');
+    }
+  };
+
+  const handleDelete = (look: any, fromModal = false) => {
     Alert.alert(
       'Delete Look',
-      'Are you sure you want to delete this look?',
+      'This look will be permanently deleted.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -55,19 +77,14 @@ export default function VaultScreen() {
           onPress: async () => {
             try {
               if (user) {
-                // Check if it's a Firestore look or local look
                 if (look.firestoreId) {
-                  await deleteGeneratedLook(user.uid, look);
-                  // Update local state
-                  setFirestoreLooks(prev => prev.filter(l => l.id !== look.id));
-                } else {
-                  // Local storage look
-                  removeSavedLook(look.id);
+                  await deleteLook(user.uid, look);
+                  setFirestoreLooks(prev => prev.filter(l => l.firestoreId !== look.firestoreId));
                 }
+                if (fromModal) setSelectedImage(null);
               }
             } catch (error) {
               console.error('Error deleting look:', error);
-              Alert.alert('Error', 'Failed to delete look');
             }
           },
         },
@@ -75,139 +92,243 @@ export default function VaultScreen() {
     );
   };
 
-  const renderItem = ({ item, index }: { item: any; index: number }) => (
-    <View style={{ width: ITEM_SIZE, position: 'relative', padding: 4 }}>
-      {/* Corner Brackets */}
-      <View style={{ position: 'absolute', top: 4, left: 4, width: 12, height: 12, borderLeftWidth: 1, borderTopWidth: 1, borderColor: '#000', zIndex: 10 }} />
-      <View style={{ position: 'absolute', top: 4, right: 4, width: 12, height: 12, borderRightWidth: 1, borderTopWidth: 1, borderColor: '#000', zIndex: 10 }} />
-      <View style={{ position: 'absolute', bottom: 4, left: 4, width: 12, height: 12, borderLeftWidth: 1, borderBottomWidth: 1, borderColor: '#000', zIndex: 10 }} />
-      <View style={{ position: 'absolute', bottom: 4, right: 4, width: 12, height: 12, borderRightWidth: 1, borderBottomWidth: 1, borderColor: '#000', zIndex: 10 }} />
-      
-      <View style={{ aspectRatio: 3 / 4, backgroundColor: '#F3F4F6', overflow: 'hidden' }}>
-        <Image
-          source={{ uri: item.image }}
-          style={{ width: '100%', height: '100%' }}
-          contentFit="cover"
-          transition={300}
-        />
-        
-        {/* Bottom info */}
-        <View style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          paddingVertical: 8,
-          paddingHorizontal: 8,
-          backgroundColor: 'rgba(0,0,0,0.7)',
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}>
-          <Text style={{ color: '#fff', fontSize: 8, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', letterSpacing: 1 }}>
-            LOOK_{String(index + 1).padStart(2, '0')}.JPG
-          </Text>
-          <TouchableOpacity onPress={() => handleDelete(item)}>
-            <Ionicons name="trash-outline" size={12} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  );
+  const handleShare = async (imageUrl: string) => {
+    try {
+      await Share.share({
+        url: imageUrl,
+        message: 'Check out my look from ZYORA!',
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
-  const renderEmptyState = () => (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 48 }}>
-      {/* Crosshair */}
-      <View style={{ position: 'relative', width: 48, height: 48, marginBottom: 24 }}>
-        <View style={{ position: 'absolute', left: 23, top: 0, width: 1, height: 48, backgroundColor: '#D1D5DB' }} />
-        <View style={{ position: 'absolute', top: 23, left: 0, width: 48, height: 1, backgroundColor: '#D1D5DB' }} />
-      </View>
-      
-      <Text
-        style={{ 
-          fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', 
-          fontSize: 24, 
-          fontStyle: 'italic',
-          color: '#D1D5DB', 
-          marginBottom: 8 
+  const handleDeleteAll = () => {
+    if (firestoreLooks.length === 0) return;
+
+    Alert.alert(
+      'Clear Vault',
+      'Delete all saved looks? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              if (user) {
+                await deleteAllUserLooks(user.uid);
+                setFirestoreLooks([]);
+              }
+            } catch (error) {
+              console.error('Error deleting all looks:', error);
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const renderItem = ({ item }: { item: any }) => (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onPress={() => setSelectedImage(item)}
+      style={{
+        width: ITEM_WIDTH,
+        height: ITEM_WIDTH * 1.5,
+        backgroundColor: '#f0f0f0',
+        position: 'relative',
+        borderRadius: 16,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 3,
+        marginBottom: GAP, // Add vertical spacing
+      }}
+    >
+      <Image
+        source={{ uri: item.imageUrl || item.image }}
+        style={{ width: '100%', height: '100%' }}
+        contentFit="cover"
+        transition={300}
+      />
+
+      {/* Subtle Delete Overlay Button */}
+      <TouchableOpacity
+        onPress={() => handleDelete(item)}
+        style={{
+          position: 'absolute',
+          bottom: 8,
+          right: 8,
+          backgroundColor: 'rgba(255,255,255,0.9)',
+          borderRadius: 20,
+          width: 28,
+          height: 28,
+          alignItems: 'center',
+          justifyContent: 'center',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
         }}
       >
-        Empty Archive
-      </Text>
-      <Text style={{ color: '#9CA3AF', fontSize: 11, textAlign: 'center', lineHeight: 18, letterSpacing: 1, textTransform: 'uppercase' }}>
-        Your woven looks will appear here
-      </Text>
-    </View>
+        <Ionicons name="trash-outline" size={14} color="#EF4444" />
+      </TouchableOpacity>
+    </TouchableOpacity>
   );
 
+  const hasItems = firestoreLooks.length > 0;
+  const itemCount = firestoreLooks.length;
+
+
+
   return (
-    <View style={{ flex: 1, backgroundColor: '#fff' }}>
-      {/* Header */}
+    <View style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
+      <StatusBar barStyle="dark-content" />
+
+      {/* Minimalist Header */}
       <Animated.View
         style={{
           opacity: fadeAnim,
-          paddingTop: insets.top + 12,
-          paddingBottom: 16,
-          paddingHorizontal: 24,
+          paddingTop: insets.top + 20,
+          paddingBottom: 24,
+          paddingHorizontal: 20,
+          backgroundColor: '#FAFAFA',
           borderBottomWidth: 1,
-          borderBottomColor: 'rgba(0,0,0,0.05)',
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'flex-end',
+          borderBottomColor: '#E5E7EB', // Separator line
         }}
       >
-        <View>
-          <Text
-            style={{ 
-              fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', 
-              fontSize: 32, 
-              color: '#000',
-              letterSpacing: -1,
-            }}
-          >
-            ZYORA
-          </Text>
-          <Text style={{ 
-            fontSize: 9, 
-            color: '#9CA3AF', 
-            fontWeight: 'bold',
-            letterSpacing: 4, 
-            textTransform: 'uppercase',
-            marginTop: 4,
-          }}>
-            Vault
-          </Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <View>
+            <Text
+              style={{
+                fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+                fontSize: 42,
+                color: '#111',
+                letterSpacing: -1.5,
+                lineHeight: 48,
+              }}
+            >
+              Vault
+            </Text>
+
+          </View>
+
+          <TouchableOpacity onPress={handleDeleteAll} disabled={!hasItems}>
+            <Text style={{
+              fontSize: 10,
+              fontWeight: '700',
+              letterSpacing: 1,
+              marginTop: 12,
+              opacity: hasItems ? 1 : 0,
+              color: '#111'
+            }}>
+              • {String(itemCount).padStart(2, '0')} LOOKS
+            </Text>
+          </TouchableOpacity>
         </View>
-        
-        <Text style={{ 
-          fontSize: 9, 
-          fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', 
-          color: '#9CA3AF',
-        }}>
-          {loading ? 'LOADING...' : `${(savedLooks.length + firestoreLooks.length)} ITEMS`}
-        </Text>
       </Animated.View>
 
       {loading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ color: '#9CA3AF', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>
-            LOADING...
+          <Text style={{ color: '#000', fontSize: 10, letterSpacing: 2 }}>LOADING</Text>
+        </View>
+      ) : !hasItems ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
+          <Text style={{
+            fontFamily: Platform.OS === 'ios' ? 'Georgia-Italic' : 'serif',
+            fontSize: 24,
+            color: '#111',
+            marginBottom: 8
+          }}>
+            Vault Empty
+          </Text>
+          <Text style={{
+            fontSize: 10,
+            color: '#666',
+            letterSpacing: 1.5,
+            textTransform: 'uppercase'
+          }}>
+            YOUR GENERATED LOOKS WILL APPEAR HERE
           </Text>
         </View>
-      ) : savedLooks.length === 0 && firestoreLooks.length === 0 ? (
-        renderEmptyState()
       ) : (
         <FlatList
-          data={[...firestoreLooks, ...savedLooks]}
+          data={firestoreLooks}
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
           numColumns={2}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 140 }}
-          columnWrapperStyle={{ gap: 8 }}
-          ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+          columnWrapperStyle={{ gap: GAP }}
+          contentContainerStyle={{ paddingHorizontal: GAP, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
+          bounces={true}
         />
       )}
+
+      {/* Full Screen Modal */}
+      <Modal
+        visible={!!selectedImage}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSelectedImage(null)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center' }}>
+          {/* Close Button */}
+          <TouchableOpacity
+            onPress={() => setSelectedImage(null)}
+            style={{ position: 'absolute', top: insets.top + 20, right: 20, zIndex: 50, padding: 8 }}
+          >
+            <Ionicons name="close" size={28} color="#fff" />
+          </TouchableOpacity>
+
+          {selectedImage && (
+            <View style={{ width: '100%', height: '80%' }}>
+              <Image
+                source={{ uri: selectedImage.imageUrl || selectedImage.image }}
+                style={{ width: '100%', height: '100%' }}
+                contentFit="contain"
+              />
+            </View>
+          )}
+
+          {/* Action Bar */}
+          <View style={{
+            position: 'absolute',
+            bottom: insets.bottom + 20,
+            left: 0,
+            right: 0,
+            flexDirection: 'row',
+            justifyContent: 'center',
+            gap: 32
+          }}>
+            <TouchableOpacity onPress={() => handleSaveImage(selectedImage.imageUrl || selectedImage.image)} style={{ alignItems: 'center' }}>
+              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#333', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                <Ionicons name="download-outline" size={20} color="#fff" />
+              </View>
+              <Text style={{ color: '#fff', fontSize: 10 }}>Save</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => handleShare(selectedImage.imageUrl || selectedImage.image)} style={{ alignItems: 'center' }}>
+              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#333', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                <Ionicons name="share-social-outline" size={20} color="#fff" />
+              </View>
+              <Text style={{ color: '#fff', fontSize: 10 }}>Share</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => handleDelete(selectedImage, true)} style={{ alignItems: 'center' }}>
+              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#3F1111', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                <Ionicons name="trash-outline" size={20} color="#FF6B6B" />
+              </View>
+              <Text style={{ color: '#FF6B6B', fontSize: 10 }}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
