@@ -110,20 +110,13 @@ export default function GenerateScreen() {
           setProgress((prev) => (prev < 90 ? prev + 0.5 : prev));
         }, 100);
 
-        // ===== TEST MODE: MOCK GENERATION - REMOVE AFTER TESTING =====
-        // Using a tiny 1x1 pink test image to avoid consuming API credits
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate delay
-        const response = {
-          success: true,
-          image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='
-        };
-        // ===== ORIGINAL CODE (UNCOMMENT AFTER TESTING) =====
-        // const [userBase64, fitBase64] = await Promise.all([
-        //   userImg.base64 || uriToBase64(userImg.uri),
-        //   fitImg.base64 || uriToBase64(fitImg.uri),
-        // ]);
-        // const response = await generateLook(userBase64, fitBase64);
-        // ===== END TEST MODE =====
+        // ===== REAL GENERATION CODE =====
+        const [userBase64, fitBase64] = await Promise.all([
+          userImg.base64 || uriToBase64(userImg.uri),
+          fitImg.base64 || uriToBase64(fitImg.uri),
+        ]);
+        const response = await generateLook(userBase64, fitBase64);
+        // ===== END REAL GENERATION =====
 
         clearInterval(interval);
         setProgress(100);

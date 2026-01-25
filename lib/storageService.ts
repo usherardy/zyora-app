@@ -58,7 +58,11 @@ export async function uploadProfilePicture(userId: string, imageUri: string): Pr
           const storageRef = ref(storage, `profile-pictures/${userId}`);
           console.log('Storage ref:', storageRef);
 
-          await uploadBytes(storageRef, blob);
+          // Explicitly set content type to ensure rules pass
+          const metadata = {
+            contentType: blob.type || 'image/jpeg', // Default to jpeg if type missing
+          };
+          await uploadBytes(storageRef, blob, metadata);
           console.log('Upload successful');
 
           const downloadURL = await getDownloadURL(storageRef);
@@ -159,7 +163,8 @@ export async function uploadGeneratedLook(userId: string, imageData: string, loo
           }
 
           console.log('Blob created successfully');
-          await uploadBytes(storageRef, blob!);
+          // Explicitly set content type to 'image/png' to satisfy storage rules
+          await uploadBytes(storageRef, blob!, { contentType: 'image/png' });
           console.log('Generated look upload successful via file-backed blob');
 
           // Clean up temp file if native

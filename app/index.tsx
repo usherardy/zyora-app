@@ -1,11 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  ImageBackground, 
-  Dimensions, 
-  Platform, 
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ImageBackground,
+  Dimensions,
+  Platform,
   Alert,
   Modal,
   TextInput,
@@ -42,6 +42,23 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [emailError, setEmailError] = useState(false);
+  const [passwordError, setPasswordError] = useState(false);
+  const [notification, setNotification] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
+
+  // Auto-hide notification
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        setNotification(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
+
+  const showNotification = (message: string, type: 'error' | 'success' = 'error') => {
+    setNotification({ message, type });
+  };
 
   // Google Auth hook
   const { request, response, promptAsync } = useGoogleAuth();
@@ -52,7 +69,7 @@ export default function AuthScreen() {
 
   useEffect(() => {
     loadFromStorage();
-    
+
     // Start floating animation - slow 6 second loop
     Animated.loop(
       Animated.sequence([
@@ -132,7 +149,7 @@ export default function AuthScreen() {
       );
       return;
     }
-    
+
     try {
       setIsSigningIn(true);
       await promptAsync();
@@ -144,8 +161,14 @@ export default function AuthScreen() {
   };
 
   const handleSignIn = async () => {
+    // Reset errors
+    setEmailError(false);
+    setPasswordError(false);
+
     if (!email || !password) {
-      Alert.alert('Error', 'Please enter both email and password');
+      if (!email) setEmailError(true);
+      if (!password) setPasswordError(true);
+      showNotification('Please enter both email and password');
       return;
     }
 
@@ -160,30 +183,44 @@ export default function AuthScreen() {
       }
     } catch (error: any) {
       console.error('Email sign in failed:', error);
-      let errorMessage = 'Failed to sign in. Please try again.';
-      
+
+      // Set error styling on both fields for auth failures
+      setEmailError(true);
+      setPasswordError(true);
+
+      let errorMessage = 'Invalid email or password';
+
       if (error.code === 'auth/user-not-found') {
-        errorMessage = 'No account found with this email address.';
-      } else if (error.code === 'auth/wrong-password') {
-        errorMessage = 'Incorrect password. Please try again.';
+        errorMessage = 'No account found with this email';
+      } else if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        errorMessage = 'Invalid email or password';
       } else if (error.code === 'auth/invalid-email') {
-        errorMessage = 'Please enter a valid email address.';
+        errorMessage = 'Please enter a valid email';
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = 'Too many attempts. Try again later';
       }
-      
-      Alert.alert('Sign In Failed', errorMessage);
+
+      showNotification(errorMessage);
     } finally {
       setIsSigningIn(false);
     }
   };
 
   const handleSignUp = async () => {
+    // Reset errors
+    setEmailError(false);
+    setPasswordError(false);
+
     if (!email || !password) {
-      Alert.alert('Error', 'Please enter both email and password');
+      if (!email) setEmailError(true);
+      if (!password) setPasswordError(true);
+      showNotification('Please enter both email and password');
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+      setPasswordError(true);
+      showNotification('Password must be at least 6 characters long');
       return;
     }
 
@@ -198,17 +235,26 @@ export default function AuthScreen() {
       }
     } catch (error: any) {
       console.error('Email sign up failed:', error);
-      let errorMessage = 'Failed to create account. Please try again.';
-      
+
+      // Set error styling based on error type
+      let errorMessage = 'Could not create account';
+
       if (error.code === 'auth/email-already-in-use') {
-        errorMessage = 'An account with this email already exists. Please sign in instead.';
+        errorMessage = 'Email already in use';
+        setEmailError(true);
       } else if (error.code === 'auth/invalid-email') {
-        errorMessage = 'Please enter a valid email address.';
+        errorMessage = 'Please enter a valid email';
+        setEmailError(true);
       } else if (error.code === 'auth/weak-password') {
-        errorMessage = 'Password is too weak. Please choose a stronger password.';
+        errorMessage = 'Password is too weak';
+        setPasswordError(true);
+      } else {
+        // Generic error - highlight both
+        setEmailError(true);
+        setPasswordError(true);
       }
-      
-      Alert.alert('Sign Up Failed', errorMessage);
+
+      showNotification(errorMessage);
     } finally {
       setIsSigningIn(false);
     }
@@ -230,13 +276,13 @@ export default function AuthScreen() {
     } catch (error: any) {
       console.error('Password reset failed:', error);
       let errorMessage = 'Failed to send password reset email.';
-      
+
       if (error.code === 'auth/user-not-found') {
         errorMessage = 'No account found with this email address.';
       } else if (error.code === 'auth/invalid-email') {
         errorMessage = 'Please enter a valid email address.';
       }
-      
+
       Alert.alert('Password Reset Failed', errorMessage);
     }
   };
@@ -249,11 +295,19 @@ export default function AuthScreen() {
     router.replace('/(tabs)/studio');
   };
 
-  const closeModal = () => {
-    setShowAuthModal(false);
-    setAuthModalView('options');
+  // Helper to switch views and reset state
+  const switchAuthView = (view: AuthModalView) => {
+    setAuthModalView(view);
     setEmail('');
     setPassword('');
+    setEmailError(false);
+    setPasswordError(false);
+    setNotification(null);
+  };
+
+  const closeModal = () => {
+    setShowAuthModal(false);
+    switchAuthView('options');
   };
 
   if (isLoading) {
@@ -286,11 +340,11 @@ export default function AuthScreen() {
       />
 
       {/* Floating Animated Logo - Top Right */}
-      <Animated.View 
+      <Animated.View
         style={{
           position: 'absolute',
-          top: insets.top + 48, 
-          right: 32, 
+          top: insets.top + 48,
+          right: 32,
           zIndex: 10,
           alignItems: 'flex-end',
           opacity: logoOpacity,
@@ -299,7 +353,7 @@ export default function AuthScreen() {
         }}
       >
         {/* Circular Logo with glow effect */}
-        <View 
+        <View
           style={{
             width: 96,
             height: 96,
@@ -312,10 +366,10 @@ export default function AuthScreen() {
             ...createShadow('#FFFFFF', 0, 0, 0.15, 40, 0),
           }}
         >
-          <Text 
-            style={{ 
-              fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', 
-              fontSize: 48, 
+          <Text
+            style={{
+              fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+              fontSize: 48,
               color: '#FFFFFF',
               fontStyle: 'italic',
               paddingRight: 4,
@@ -324,10 +378,10 @@ export default function AuthScreen() {
             Z
           </Text>
         </View>
-        <Text 
-          style={{ 
+        <Text
+          style={{
             fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-            fontSize: 18, 
+            fontSize: 18,
             color: '#FFFFFF',
             letterSpacing: 6,
             marginTop: 12,
@@ -343,10 +397,10 @@ export default function AuthScreen() {
       <View style={{ flex: 1, justifyContent: 'flex-end', paddingHorizontal: 32, paddingBottom: insets.bottom + 48, zIndex: 10 }}>
         {/* Hero Text - Large 72px Bodoni Moda style serif italic */}
         <View style={{ marginBottom: 48 }}>
-          <Text 
-            style={{ 
-              fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', 
-              fontSize: 72, 
+          <Text
+            style={{
+              fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+              fontSize: 72,
               color: '#FFFFFF',
               fontStyle: 'italic',
               lineHeight: 68,
@@ -356,10 +410,10 @@ export default function AuthScreen() {
           >
             Virtually
           </Text>
-          <Text 
-            style={{ 
-              fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', 
-              fontSize: 72, 
+          <Text
+            style={{
+              fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+              fontSize: 72,
               color: '#FFFFFF',
               fontStyle: 'italic',
               lineHeight: 68,
@@ -369,14 +423,14 @@ export default function AuthScreen() {
           >
             Yours.
           </Text>
-          
+
           {/* Tagline with horizontal line accent */}
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16 }}>
             <View style={{ width: 48, height: 1, backgroundColor: 'rgba(255,255,255,0.5)', marginRight: 16 }} />
-            <Text 
-              style={{ 
-                color: 'rgba(255,255,255,0.8)', 
-                fontSize: 11, 
+            <Text
+              style={{
+                color: 'rgba(255,255,255,0.8)',
+                fontSize: 11,
                 letterSpacing: 4,
                 fontWeight: '300',
                 textTransform: 'uppercase',
@@ -401,11 +455,11 @@ export default function AuthScreen() {
             paddingHorizontal: 24,
           }}
         >
-          <Text 
-            style={{ 
-              color: '#000000', 
-              fontSize: 13, 
-              fontWeight: '500', 
+          <Text
+            style={{
+              color: '#000000',
+              fontSize: 13,
+              fontWeight: '500',
               letterSpacing: 3,
             }}
           >
@@ -429,23 +483,96 @@ export default function AuthScreen() {
             style={{ position: 'absolute', width, height }}
             resizeMode="cover"
           />
-          
+
           {/* Dark Overlay */}
           <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)' }} />
 
-          <KeyboardAvoidingView 
+          <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={{ flex: 1 }}
           >
             <Pressable onPress={() => Platform.OS !== 'web' && Keyboard.dismiss()} style={{ flex: 1 }}>
               <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 24 }}>
-                
+
+                {/* Notification Popup - Enhanced Design */}
+                {notification && (
+                  <Animated.View
+                    style={{
+                      position: 'absolute',
+                      top: 60,
+                      left: 20,
+                      right: 20,
+                      backgroundColor: notification.type === 'error' ? '#1A1A1A' : '#FFFFFF',
+                      borderRadius: 16,
+                      padding: 18,
+                      zIndex: 100,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      borderWidth: 1,
+                      borderColor: notification.type === 'error' ? '#EF4444' : 'rgba(34, 197, 94, 0.3)',
+                      shadowColor: notification.type === 'error' ? "#EF4444" : "#22C55E",
+                      shadowOffset: {
+                        width: 0,
+                        height: 8,
+                      },
+                      shadowOpacity: 0.25,
+                      shadowRadius: 16,
+                      elevation: 12,
+                    }}
+                  >
+                    <View style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: notification.type === 'error' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.15)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginRight: 14
+                    }}>
+                      <Ionicons
+                        name={notification.type === 'error' ? "close-circle" : "checkmark-circle"}
+                        size={24}
+                        color={notification.type === 'error' ? "#EF4444" : "#22C55E"}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{
+                        color: notification.type === 'error' ? '#EF4444' : '#22C55E',
+                        fontSize: 11,
+                        fontWeight: 'bold',
+                        letterSpacing: 2,
+                        textTransform: 'uppercase',
+                        marginBottom: 4
+                      }}>
+                        {notification.type === 'error' ? 'Oops!' : 'Success'}
+                      </Text>
+                      <Text style={{
+                        color: notification.type === 'error' ? '#FFFFFF' : '#374151',
+                        fontSize: 14,
+                        fontWeight: '500'
+                      }}>
+                        {notification.message}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setNotification(null)}
+                      style={{
+                        padding: 8,
+                        borderRadius: 20,
+                        backgroundColor: 'rgba(255,255,255,0.1)',
+                      }}
+                    >
+                      <Ionicons name="close" size={16} color={notification.type === 'error' ? '#888' : '#9CA3AF'} />
+                    </TouchableOpacity>
+                  </Animated.View>
+                )}
+
                 {/* Auth Options View */}
                 {authModalView === 'options' && (
                   <View>
                     {/* Sign In Button */}
                     <TouchableOpacity
-                      onPress={() => setAuthModalView('signin')}
+                      onPress={() => switchAuthView('signin')}
                       activeOpacity={0.9}
                       style={{
                         width: '100%',
@@ -465,7 +592,7 @@ export default function AuthScreen() {
 
                     {/* Create Account Button */}
                     <TouchableOpacity
-                      onPress={() => setAuthModalView('signup')}
+                      onPress={() => switchAuthView('signup')}
                       activeOpacity={0.9}
                       style={{
                         width: '100%',
@@ -480,7 +607,7 @@ export default function AuthScreen() {
                       }}
                     >
                       <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '500', letterSpacing: 2 }}>
-                        CREATE ACCOUNT
+                        JOIN ZYORA
                       </Text>
                     </TouchableOpacity>
 
@@ -525,13 +652,13 @@ export default function AuthScreen() {
                   <View>
                     {/* Back Button and Title */}
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 32 }}>
-                      <TouchableOpacity onPress={() => setAuthModalView('options')} style={{ marginRight: 16 }}>
+                      <TouchableOpacity onPress={() => switchAuthView('options')} style={{ marginRight: 16 }}>
                         <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
                       </TouchableOpacity>
-                      <Text 
-                        style={{ 
-                          fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', 
-                          fontSize: 32, 
+                      <Text
+                        style={{
+                          fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+                          fontSize: 32,
                           color: '#FFFFFF',
                           fontStyle: 'italic',
                         }}
@@ -542,51 +669,65 @@ export default function AuthScreen() {
 
                     {/* Email Input */}
                     <View style={{ marginBottom: 16 }}>
-                      <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, letterSpacing: 2, marginBottom: 8 }}>
-                        EMAIL
+                      <Text style={{ color: emailError ? '#EF4444' : 'rgba(255,255,255,0.7)', fontSize: 11, letterSpacing: 2, marginBottom: 8, fontWeight: emailError ? 'bold' : 'normal' }}>
+                        {emailError ? 'EMAIL ADDRESS' : 'EMAIL'}
                       </Text>
-                      <TextInput
-                        value={email}
-                        onChangeText={setEmail}
-                        placeholder="name@example.com"
-                        placeholderTextColor="rgba(255,255,255,0.4)"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        style={{
-                          width: '100%',
-                          paddingVertical: 16,
-                          paddingHorizontal: 16,
-                          backgroundColor: 'rgba(255,255,255,0.15)',
-                          borderWidth: 1,
-                          borderColor: 'rgba(255,255,255,0.2)',
-                          color: '#FFFFFF',
-                          fontSize: 15,
-                        }}
-                      />
+                      <View style={{ position: 'relative' }}>
+                        <TextInput
+                          value={email}
+                          onChangeText={(text) => { setEmail(text); setEmailError(false); }}
+                          placeholder="name@example.com"
+                          placeholderTextColor="rgba(255,255,255,0.4)"
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          style={{
+                            width: '100%',
+                            paddingVertical: 16,
+                            paddingHorizontal: 16,
+                            backgroundColor: 'rgba(255,255,255,0.15)',
+                            borderWidth: 1,
+                            borderColor: emailError ? '#EF4444' : 'rgba(255,255,255,0.2)',
+                            color: emailError ? '#EF4444' : '#FFFFFF',
+                            fontSize: 15,
+                          }}
+                        />
+                        {emailError && (
+                          <View style={{ position: 'absolute', right: 16, top: 16 }}>
+                            <Ionicons name="alert-circle-outline" size={20} color="#EF4444" />
+                          </View>
+                        )}
+                      </View>
                     </View>
 
                     {/* Password Input */}
                     <View style={{ marginBottom: 32 }}>
-                      <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, letterSpacing: 2, marginBottom: 8 }}>
-                        PASSWORD
+                      <Text style={{ color: passwordError ? '#EF4444' : 'rgba(255,255,255,0.7)', fontSize: 11, letterSpacing: 2, marginBottom: 8, fontWeight: passwordError ? 'bold' : 'normal' }}>
+                        {passwordError ? 'PASSWORD' : 'PASSWORD'}
                       </Text>
-                      <TextInput
-                        value={password}
-                        onChangeText={setPassword}
-                        placeholder="••••••••"
-                        placeholderTextColor="rgba(255,255,255,0.4)"
-                        secureTextEntry
-                        style={{
-                          width: '100%',
-                          paddingVertical: 16,
-                          paddingHorizontal: 16,
-                          backgroundColor: 'rgba(255,255,255,0.15)',
-                          borderWidth: 1,
-                          borderColor: 'rgba(255,255,255,0.2)',
-                          color: '#FFFFFF',
-                          fontSize: 15,
-                        }}
-                      />
+                      <View style={{ position: 'relative' }}>
+                        <TextInput
+                          value={password}
+                          onChangeText={(text) => { setPassword(text); setPasswordError(false); }}
+                          placeholder="••••••••"
+                          placeholderTextColor="rgba(255,255,255,0.4)"
+                          secureTextEntry
+                          style={{
+                            width: '100%',
+                            paddingVertical: 16,
+                            paddingHorizontal: 16,
+                            backgroundColor: 'rgba(255,255,255,0.15)',
+                            borderWidth: 1,
+                            borderColor: passwordError ? '#EF4444' : 'rgba(255,255,255,0.2)',
+                            color: passwordError ? '#EF4444' : '#FFFFFF',
+                            fontSize: 15,
+                          }}
+                        />
+                        {passwordError && (
+                          <View style={{ position: 'absolute', right: 16, top: 16 }}>
+                            <Ionicons name="alert-circle-outline" size={20} color="#EF4444" />
+                          </View>
+                        )}
+                      </View>
                     </View>
 
                     {/* Forgot Password */}
@@ -626,68 +767,82 @@ export default function AuthScreen() {
                   <View>
                     {/* Back Button and Title */}
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 32 }}>
-                      <TouchableOpacity onPress={() => setAuthModalView('options')} style={{ marginRight: 16 }}>
+                      <TouchableOpacity onPress={() => switchAuthView('options')} style={{ marginRight: 16 }}>
                         <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
                       </TouchableOpacity>
-                      <Text 
-                        style={{ 
-                          fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', 
-                          fontSize: 32, 
+                      <Text
+                        style={{
+                          fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+                          fontSize: 32,
                           color: '#FFFFFF',
                           fontStyle: 'italic',
                         }}
                       >
-                        Create Account
+                        Join Zyora
                       </Text>
                     </View>
 
                     {/* Email Input */}
                     <View style={{ marginBottom: 16 }}>
-                      <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, letterSpacing: 2, marginBottom: 8 }}>
-                        EMAIL
+                      <Text style={{ color: emailError ? '#EF4444' : 'rgba(255,255,255,0.7)', fontSize: 11, letterSpacing: 2, marginBottom: 8, fontWeight: emailError ? 'bold' : 'normal' }}>
+                        {emailError ? 'EMAIL ADDRESS' : 'EMAIL'}
                       </Text>
-                      <TextInput
-                        value={email}
-                        onChangeText={setEmail}
-                        placeholder="name@example.com"
-                        placeholderTextColor="rgba(255,255,255,0.4)"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        style={{
-                          width: '100%',
-                          paddingVertical: 16,
-                          paddingHorizontal: 16,
-                          backgroundColor: 'rgba(255,255,255,0.15)',
-                          borderWidth: 1,
-                          borderColor: 'rgba(255,255,255,0.2)',
-                          color: '#FFFFFF',
-                          fontSize: 15,
-                        }}
-                      />
+                      <View style={{ position: 'relative' }}>
+                        <TextInput
+                          value={email}
+                          onChangeText={(text) => { setEmail(text); setEmailError(false); }}
+                          placeholder="name@example.com"
+                          placeholderTextColor="rgba(255,255,255,0.4)"
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          style={{
+                            width: '100%',
+                            paddingVertical: 16,
+                            paddingHorizontal: 16,
+                            backgroundColor: 'rgba(255,255,255,0.15)',
+                            borderWidth: 1,
+                            borderColor: emailError ? '#EF4444' : 'rgba(255,255,255,0.2)',
+                            color: emailError ? '#EF4444' : '#FFFFFF',
+                            fontSize: 15,
+                          }}
+                        />
+                        {emailError && (
+                          <View style={{ position: 'absolute', right: 16, top: 16 }}>
+                            <Ionicons name="alert-circle-outline" size={20} color="#EF4444" />
+                          </View>
+                        )}
+                      </View>
                     </View>
 
                     {/* Password Input */}
                     <View style={{ marginBottom: 32 }}>
-                      <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, letterSpacing: 2, marginBottom: 8 }}>
-                        PASSWORD
+                      <Text style={{ color: passwordError ? '#EF4444' : 'rgba(255,255,255,0.7)', fontSize: 11, letterSpacing: 2, marginBottom: 8, fontWeight: passwordError ? 'bold' : 'normal' }}>
+                        {passwordError ? 'PASSWORD' : 'PASSWORD'}
                       </Text>
-                      <TextInput
-                        value={password}
-                        onChangeText={setPassword}
-                        placeholder="••••••••"
-                        placeholderTextColor="rgba(255,255,255,0.4)"
-                        secureTextEntry
-                        style={{
-                          width: '100%',
-                          paddingVertical: 16,
-                          paddingHorizontal: 16,
-                          backgroundColor: 'rgba(255,255,255,0.15)',
-                          borderWidth: 1,
-                          borderColor: 'rgba(255,255,255,0.2)',
-                          color: '#FFFFFF',
-                          fontSize: 15,
-                        }}
-                      />
+                      <View style={{ position: 'relative' }}>
+                        <TextInput
+                          value={password}
+                          onChangeText={(text) => { setPassword(text); setPasswordError(false); }}
+                          placeholder="••••••••"
+                          placeholderTextColor="rgba(255,255,255,0.4)"
+                          secureTextEntry
+                          style={{
+                            width: '100%',
+                            paddingVertical: 16,
+                            paddingHorizontal: 16,
+                            backgroundColor: 'rgba(255,255,255,0.15)',
+                            borderWidth: 1,
+                            borderColor: passwordError ? '#EF4444' : 'rgba(255,255,255,0.2)',
+                            color: passwordError ? '#EF4444' : '#FFFFFF',
+                            fontSize: 15,
+                          }}
+                        />
+                        {passwordError && (
+                          <View style={{ position: 'absolute', right: 16, top: 16 }}>
+                            <Ionicons name="alert-circle-outline" size={20} color="#EF4444" />
+                          </View>
+                        )}
+                      </View>
                     </View>
 
                     {/* Create Account Button */}
@@ -708,7 +863,7 @@ export default function AuthScreen() {
                         <ActivityIndicator size="small" color="#000000" />
                       ) : (
                         <Text style={{ color: '#000000', fontSize: 13, fontWeight: '500', letterSpacing: 2 }}>
-                          CREATE ACCOUNT
+                          JOIN ZYORA
                         </Text>
                       )}
                     </TouchableOpacity>
